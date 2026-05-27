@@ -33,7 +33,7 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
         inputMode="decimal"
         placeholder={showSuggestion ? `${fromKg(suggestion!.kg, units).toFixed(1)}` : units}
         value={set.kg ? fromKg(set.kg, units).toString() : ""}
-        disabled={set.completed}
+        /* completed sets stay editable — typos happen */
         onChange={(e) => {
           const raw = e.target.value.replace(",", ".");
           const num = parseFloat(raw);
@@ -47,7 +47,7 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
         inputMode="numeric"
         placeholder={showSuggestion ? `${suggestion!.reps}` : "reps"}
         value={set.reps || ""}
-        disabled={set.completed}
+        /* completed sets stay editable — typos happen */
         onChange={(e) => {
           const num = parseInt(e.target.value, 10);
           onChange({ reps: Number.isFinite(num) && num >= 0 ? num : 0 });

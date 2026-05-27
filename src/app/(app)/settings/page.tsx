@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signOut, sendPasswordResetEmail, deleteUser } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { Scale, Palette, Mail, LogOut, AlertTriangle, Target } from "lucide-react";
+import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -12,6 +12,10 @@ import { useToast } from "@/providers/ToastProvider";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
+import { useMuscleTargets, type DisplayMuscle } from "@/hooks/useMuscleTargets";
+import { useTrackedMuscles } from "@/hooks/useTrackedMuscles";
+import { ALL_MUSCLE_ROWS } from "@/components/dashboard/MuscleBalance";
+import { Check } from "lucide-react";
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -77,12 +81,11 @@ export default function SettingsPage() {
         </Section>
       </Card>
 
-      {/* Weekly goal (UI only — stored in profile in a real build) */}
-      <Card className="p-5">
-        <Section icon={<Target className="w-4 h-4" />} title="Weekly goal">
-          <p className="text-sm text-zinc-500">Currently fixed at 4 sessions/week. Customizable goal coming soon.</p>
-        </Section>
-      </Card>
+      {/* Which muscles to track */}
+      <TrackedMusclesEditor />
+
+      {/* Muscle targets */}
+      <MuscleTargetsEditor />
 
       {/* Account */}
       <Card className="p-5 space-y-3">
@@ -125,6 +128,101 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
       </h2>
       {children}
     </div>
+  );
+}
+
+function TrackedMusclesEditor() {
+  const { tracked, toggle, reset } = useTrackedMuscles();
+  return (
+    <Card className="p-5 space-y-3">
+      <Section icon={<Target className="w-4 h-4" />} title="Tracked muscles">
+        <p className="text-xs text-zinc-500">
+          Choose which muscles show up on your dashboard balance. Care about glutes more than chest? Toggle them.
+        </p>
+      </Section>
+      <div className="grid grid-cols-2 gap-1.5">
+        {ALL_MUSCLE_ROWS.map((r) => {
+          const on = tracked.includes(r.key);
+          return (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => toggle(r.key)}
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-colors text-left ${
+                on
+                  ? "bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30 text-zinc-900 dark:text-white"
+                  : "bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
+              }`}
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                <span className="truncate">{r.label}</span>
+              </span>
+              {on && <Check className="w-3.5 h-3.5 text-brand-500 shrink-0" strokeWidth={3} />}
+            </button>
+          );
+        })}
+      </div>
+      <Button variant="ghost" onClick={reset} className="w-full text-xs text-zinc-500">
+        <RotateCcw className="w-3 h-3" /> Reset to defaults
+      </Button>
+    </Card>
+  );
+}
+
+function MuscleTargetsEditor() {
+  const { targets, set, reset } = useMuscleTargets();
+  const { tracked } = useTrackedMuscles();
+  // Only show targets for muscles the user actually tracks
+  const visibleRows = ALL_MUSCLE_ROWS.filter((r) => tracked.includes(r.key));
+  return (
+    <Card className="p-5 space-y-3">
+      <Section icon={<Target className="w-4 h-4" />} title="Weekly muscle targets">
+        <p className="text-xs text-zinc-500">
+          Working sets per muscle per week. Tap a number to edit. Add muscles above to set their targets.
+        </p>
+      </Section>
+      <ul className="space-y-2">
+        {visibleRows.map((r) => (
+          <li key={r.key} className="flex items-center gap-3">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+            <span className="flex-1 text-sm font-semibold text-zinc-700 dark:text-zinc-200">{r.label}</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => set(r.key as DisplayMuscle, targets[r.key as DisplayMuscle] - 1)}
+                aria-label={`Decrease ${r.label}`}
+                className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors font-bold text-sm flex items-center justify-center"
+              >
+                −
+              </button>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={targets[r.key as DisplayMuscle]}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  if (Number.isFinite(n)) set(r.key as DisplayMuscle, n);
+                }}
+                className="w-12 text-center bg-zinc-50 dark:bg-zinc-800 rounded-lg py-1.5 font-bold text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-brand-500 outline-none"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              />
+              <button
+                type="button"
+                onClick={() => set(r.key as DisplayMuscle, targets[r.key as DisplayMuscle] + 1)}
+                aria-label={`Increase ${r.label}`}
+                className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors font-bold text-sm flex items-center justify-center"
+              >
+                +
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <Button variant="ghost" onClick={reset} className="w-full text-xs text-zinc-500">
+        <RotateCcw className="w-3 h-3" /> Reset to defaults
+      </Button>
+    </Card>
   );
 }
 

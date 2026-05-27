@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Sparkles, Play } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { currentStreakWeeks } from "@/lib/analytics/streak";
@@ -11,7 +11,7 @@ import { computePRs } from "@/lib/analytics/personal-records";
 import { Hero } from "@/components/dashboard/Hero";
 import { MuscleBalance } from "@/components/dashboard/MuscleBalance";
 import { StatStrip } from "@/components/dashboard/StatStrip";
-import { LatestSession } from "@/components/dashboard/LatestSession";
+import { TemplatesFromHistory } from "@/components/dashboard/TemplatesFromHistory";
 import { VolumeChart } from "@/components/dashboard/VolumeChart";
 import { PRCards } from "@/components/dashboard/PRCards";
 import { CoachInsight } from "@/components/dashboard/CoachInsight";
@@ -25,7 +25,6 @@ export default function DashboardPage() {
 
   const streak = useMemo(() => currentStreakWeeks(workouts), [workouts]);
   const prs = useMemo(() => computePRs(workouts), [workouts]);
-  const latest = workouts[0];
 
   const chartData = useMemo(
     () =>
@@ -60,20 +59,7 @@ export default function DashboardPage() {
 
       <StatStrip workouts={workouts} streak={streak} />
 
-      {latest ? (
-        <LatestSession workout={latest} />
-      ) : (
-        <Link
-          href="/log"
-          className="block rounded-3xl border border-dashed border-zinc-800 p-8 text-center hover:bg-zinc-900/50 transition-colors"
-        >
-          <div className="w-12 h-12 mx-auto rounded-2xl bg-brand-500/10 flex items-center justify-center mb-3">
-            <Play className="w-6 h-6 text-brand-400 fill-current" />
-          </div>
-          <p className="font-bold text-white">Start your first workout</p>
-          <p className="text-xs text-zinc-500 mt-1">Tap to begin logging.</p>
-        </Link>
-      )}
+      <TemplatesFromHistory workouts={workouts} />
 
       <MuscleBalance workouts={workouts} />
 

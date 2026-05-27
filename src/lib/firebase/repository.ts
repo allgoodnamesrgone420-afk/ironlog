@@ -14,7 +14,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./client";
-import type { Workout, WorkoutTemplate, BodyMetric } from "@/types/workout";
+import type { Workout, WorkoutTemplate, BodyMetric, MuscleGroup } from "@/types/workout";
 import type { CoachMessage } from "@/types/ai";
 import type { UserProfile } from "@/types/user";
 
@@ -57,6 +57,64 @@ export async function saveWorkout(uid: string, workout: Omit<Workout, "id" | "da
 
 export async function deleteWorkout(uid: string, workoutId: string) {
   return deleteDoc(doc(db, "users", uid, "workouts", workoutId));
+}
+
+// ─── Custom exercises (user's personal library) ──────────────────────
+export interface CustomExercise {
+  /** Slug of the exercise name (used as doc id). */
+  id: string;
+  name: string;
+  muscles: MuscleGroup[];
+  createdAt: Date;
+}
+
+function customExercisesCol(uid: string) {
+  return collection(db, "users", uid, "exercises");
+}
+
+function slugify(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 64);
+}
+
+export function subscribeToCustomExercises(uid: string, cb: (exs: CustomExercise[]) => void): Unsubscribe {
+  return onSnapshot(customExercisesCol(uid), (snap) => {
+    cb(
+      snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          name: String(data["name"] ?? d.id),
+          muscles: (data["muscles"] as MuscleGroup[]) ?? [],
+          createdAt: data["createdAt"] instanceof Timestamp ? (data["createdAt"] as Timestamp).toDate() : new Date(),
+        };
+      }),
+    );
+  });
+}
+
+/** Idempotent: upserts a custom exercise. Safe to call on every workout finish. */
+export async function upsertCustomExercise(uid: string, name: string, muscles: MuscleGroup[]) {
+  const id = slugify(name);
+  if (!id) return;
+  const ref = doc(customExercisesCol(uid), id);
+  await setDoc(
+    ref,
+    {
+      name: name.trim(),
+      muscles,
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+export async function deleteCustomExercise(uid: string, id: string) {
+  return deleteDoc(doc(customExercisesCol(uid), id));
 }
 
 // ─── Templates ───────────────────────────────────────────────────────

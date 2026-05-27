@@ -44,6 +44,9 @@ export interface Exercise {
   settings?: { seat?: string; incline?: string };
   /** Default rest time in seconds for this exercise */
   restSec?: number;
+  /** Muscle group tags for CUSTOM exercises (those not in the curated library).
+   *  Used by the dashboard muscle balance when no library match is found. */
+  muscles?: MuscleGroup[];
   sets: WorkoutSet[];
 }
 

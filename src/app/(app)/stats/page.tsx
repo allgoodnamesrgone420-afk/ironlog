@@ -1,15 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useUnits } from "@/providers/UnitsProvider";
-import { fromKg } from "@/lib/units/converter";
+import { useAuth } from "@/providers/AuthProvider";
+import { useToast } from "@/providers/ToastProvider";
+import { fromKg, toKg } from "@/lib/units/converter";
 import { estimate1RM } from "@/lib/analytics/onerm";
 import { workoutSetCount, workoutVolume } from "@/lib/analytics/volume";
 import { startOfWeek, daysAgo } from "@/lib/utils";
+import { addBodyMetric, subscribeToBodyMetrics } from "@/lib/firebase/repository";
+import type { BodyMetric } from "@/types/workout";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { BarChart3, TrendingUp, Flame, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { BarChart3, TrendingUp, Flame, Calendar, Scale, Plus } from "lucide-react";
 
 /** Per-exercise 1RM progression over time. */
 function ProgressionChart({ data, color = "#3b82f6" }: { data: { date: Date; v: number }[]; color?: string }) {
@@ -237,7 +242,150 @@ export default function StatsPage() {
       </section>
 
       {/* Frequency calendar */}
-      <FrequencyCalendar workouts={workouts} />
+      <MonthCalendar workouts={workouts} />
+
+      {/* Bodyweight */}
+      <BodyweightSection />
+    </div>
+  );
+}
+
+function BodyweightSection() {
+  const { user } = useAuth();
+  const { units } = useUnits();
+  const toast = useToast();
+  const [metrics, setMetrics] = useState<BodyMetric[]>([]);
+  const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToBodyMetrics(user.uid, setMetrics);
+  }, [user]);
+
+  const log = async () => {
+    if (!user) return;
+    const num = parseFloat(input.replace(",", "."));
+    if (!Number.isFinite(num) || num <= 0 || num > 500) {
+      toast.error("Enter a valid weight.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await addBodyMetric(user.uid, { date: new Date(), weightKg: toKg(num, units) });
+      setInput("");
+      toast.success("Logged");
+    } catch {
+      toast.error("Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const series = useMemo(
+    () =>
+      metrics
+        .filter((m) => typeof m.weightKg === "number")
+        .slice(0, 60)
+        .reverse()
+        .map((m) => ({ date: m.date, v: fromKg(m.weightKg!, units) })),
+    [metrics, units],
+  );
+
+  const latest = series[series.length - 1];
+  const oldest = series[0];
+  const delta = latest && oldest ? latest.v - oldest.v : 0;
+
+  return (
+    <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-1.5">
+            <Scale className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> Bodyweight
+          </h3>
+          <p className="text-xs text-zinc-500">Daily or weekly check-in</p>
+        </div>
+        {latest && (
+          <div className="text-right">
+            <div className="text-xl font-bold text-zinc-900 dark:text-white leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {latest.v.toFixed(1)}
+              <span className="text-xs text-zinc-500 font-semibold ml-1">{units}</span>
+            </div>
+            {Math.abs(delta) >= 0.1 && (
+              <div className={`text-[10px] font-bold mt-0.5 ${delta > 0 ? "text-amber-500" : "text-emerald-500"}`} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {delta > 0 ? "+" : ""}{delta.toFixed(1)} {units} all-time
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={`Today's weight (${units})`}
+          className="flex-1 bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none placeholder-zinc-400 dark:placeholder-zinc-600"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        />
+        <Button onClick={log} loading={saving} size="sm" className="shrink-0">
+          <Plus className="w-4 h-4" /> Log
+        </Button>
+      </div>
+
+      {series.length >= 2 ? (
+        <BodyweightChart data={series} />
+      ) : series.length === 1 ? (
+        <p className="text-xs text-zinc-500 italic text-center py-4">One more entry and the trend appears.</p>
+      ) : (
+        <p className="text-xs text-zinc-500 italic text-center py-4">No bodyweight logged yet.</p>
+      )}
+    </section>
+  );
+}
+
+function BodyweightChart({ data }: { data: { date: Date; v: number }[] }) {
+  const max = Math.max(...data.map((d) => d.v));
+  const min = Math.min(...data.map((d) => d.v));
+  const range = max - min || 1;
+  const x = (i: number) => (i / (data.length - 1)) * 100;
+  const y = (v: number) => 100 - ((v - min) / range) * 80 - 10;
+  const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
+  const area = `0,100 ${points} 100,100`;
+
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] text-zinc-400 mb-1 px-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <span>{max.toFixed(1)}</span>
+        <span>{min.toFixed(1)}</span>
+      </div>
+      <svg viewBox="0 0 100 100" className="w-full h-32" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="bw-grad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={area} fill="url(#bw-grad)" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        {data.map((d, i) => (
+          <circle key={i} cx={x(i)} cy={y(d.v)} r="1.2" fill="#10b981" vectorEffect="non-scaling-stroke" />
+        ))}
+      </svg>
+      <div className="flex justify-between text-[10px] text-zinc-400 mt-1 px-0.5">
+        <span>{data[0]?.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span>{data[data.length - 1]?.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+      </div>
     </div>
   );
 }
@@ -254,65 +402,174 @@ function TotalCard({ icon, label, value, color, bg }: { icon: React.ReactNode; l
   );
 }
 
-function FrequencyCalendar({ workouts }: { workouts: { date: Date }[] }) {
-  // 84-day grid (12 weeks × 7 days). Each cell colored by # of workouts that day.
-  const counts = useMemo(() => {
-    const map = new Map<string, number>();
+interface DayCell {
+  key: string;
+  date: Date;
+  workouts: number;
+  sets: number;
+}
+
+function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets: { completed: boolean }[] }[] }[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const thisKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+
+  const [picked, setPicked] = useState(thisKey);
+  const [hover, setHover] = useState<DayCell | null>(null);
+
+  // Build month options: every month with data + the current month, last 12 max
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>([thisKey]);
     for (const w of workouts) {
-      const k = new Date(w.date).toISOString().slice(0, 10);
-      map.set(k, (map.get(k) ?? 0) + 1);
+      const d = w.date;
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
     }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cells: { key: string; count: number; date: Date }[] = [];
-    for (let i = 83; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const k = d.toISOString().slice(0, 10);
-      cells.push({ key: k, count: map.get(k) ?? 0, date: d });
+    return [...set]
+      .sort((a, b) => b.localeCompare(a))
+      .slice(0, 12)
+      .map((k) => {
+        const [y, m] = k.split("-").map(Number);
+        const d = new Date(y!, m! - 1, 1);
+        return { key: k, label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) };
+      });
+  }, [workouts, thisKey]);
+
+  // Aggregate workouts + completed sets per day
+  const dayMap = useMemo(() => {
+    const map = new Map<string, { workouts: number; sets: number }>();
+    for (const w of workouts) {
+      const d = new Date(w.date);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const sets = w.exercises.reduce((a, ex) => a + ex.sets.filter((s) => s.completed).length, 0);
+      const existing = map.get(k) ?? { workouts: 0, sets: 0 };
+      map.set(k, { workouts: existing.workouts + 1, sets: existing.sets + sets });
     }
-    return cells;
+    return map;
   }, [workouts]);
 
-  const color = (n: number) => {
-    if (n === 0) return "bg-zinc-100 dark:bg-zinc-800";
-    if (n === 1) return "bg-brand-500/40";
-    if (n === 2) return "bg-brand-500/70";
+  // Build the calendar grid for the picked month
+  const [py, pm] = picked.split("-").map(Number);
+  const firstOfMonth = new Date(py!, pm! - 1, 1);
+  const lastOfMonth = new Date(py!, pm!, 0);
+  const startWeekday = firstOfMonth.getDay(); // 0 = Sun
+
+  const cells: (DayCell | null)[] = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= lastOfMonth.getDate(); d++) {
+    const date = new Date(py!, pm! - 1, d);
+    const k = `${py}-${String(pm).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const stats = dayMap.get(k) ?? { workouts: 0, sets: 0 };
+    cells.push({ key: k, date, workouts: stats.workouts, sets: stats.sets });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  // Color scale based on set count per day
+  const color = (sets: number) => {
+    if (sets === 0) return "bg-zinc-100 dark:bg-zinc-800/60";
+    if (sets <= 5) return "bg-brand-500/30";
+    if (sets <= 12) return "bg-brand-500/55";
+    if (sets <= 20) return "bg-brand-500/80";
     return "bg-brand-500";
   };
 
-  const latest = workouts[0];
+  const monthStats = useMemo(() => {
+    let totalSessions = 0;
+    let totalSets = 0;
+    for (const c of cells) {
+      if (c) {
+        totalSessions += c.workouts;
+        totalSets += c.sets;
+      }
+    }
+    return { totalSessions, totalSets };
+  }, [cells]);
 
   return (
     <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="min-w-0">
           <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-1.5">
             <Calendar className="w-4 h-4" /> Training frequency
           </h3>
-          <p className="text-xs text-zinc-500">Last 12 weeks</p>
+          <p className="text-xs text-zinc-500">
+            {monthStats.totalSessions} session{monthStats.totalSessions === 1 ? "" : "s"} · {monthStats.totalSets} sets
+          </p>
         </div>
-        {latest && (
-          <div className="text-right">
-            <div className="text-xs text-zinc-500">Last session</div>
-            <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{daysAgo(latest.date)}</div>
-          </div>
-        )}
+        <select
+          value={picked}
+          onChange={(e) => setPicked(e.target.value)}
+          className="bg-zinc-100 dark:bg-zinc-800 text-sm font-semibold text-zinc-700 dark:text-zinc-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 max-w-[170px]"
+        >
+          {monthOptions.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
       </div>
-      <div className="grid grid-cols-12 grid-rows-7 grid-flow-col gap-1">
-        {counts.map((c) => (
-          <div
-            key={c.key}
-            title={`${c.date.toLocaleDateString()} · ${c.count}`}
-            className={`aspect-square rounded-sm ${color(c.count)}`}
-          />
+
+      {/* Day-of-week header */}
+      <div className="grid grid-cols-7 gap-1 mb-1 text-center">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={i} className="text-[10px] text-zinc-400 dark:text-zinc-600 font-bold uppercase">
+            {d}
+          </div>
         ))}
       </div>
+
+      {/* Calendar grid */}
+      <div className="relative grid grid-cols-7 gap-1">
+        {cells.map((c, i) => {
+          if (!c) return <div key={`empty-${i}`} className="aspect-square" />;
+          const isToday = c.date.getTime() === today.getTime();
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onMouseEnter={() => setHover(c)}
+              onMouseLeave={() => setHover(null)}
+              onTouchStart={() => setHover(c)}
+              onClick={() => setHover(c)}
+              aria-label={`${c.date.toDateString()}: ${c.workouts} workouts, ${c.sets} sets`}
+              className={`aspect-square rounded-md flex items-center justify-center text-[10px] font-semibold transition-colors ${color(c.sets)} ${
+                c.sets > 12 ? "text-white" : "text-zinc-700 dark:text-zinc-300"
+              } ${isToday ? "ring-2 ring-brand-500 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900" : ""}`}
+            >
+              {c.date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tooltip strip */}
+      <div className="mt-3 min-h-[28px] text-xs text-zinc-600 dark:text-zinc-400">
+        {hover ? (
+          <span>
+            <strong className="text-zinc-900 dark:text-white">
+              {hover.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+            </strong>
+            {" — "}
+            {hover.workouts === 0 ? (
+              <span className="text-zinc-500">Rest day</span>
+            ) : (
+              <>
+                <strong className="text-zinc-800 dark:text-zinc-200">{hover.workouts}</strong> workout
+                {hover.workouts === 1 ? "" : "s"} ·{" "}
+                <strong className="text-zinc-800 dark:text-zinc-200">{hover.sets}</strong> set
+                {hover.sets === 1 ? "" : "s"}
+              </>
+            )}
+          </span>
+        ) : (
+          <span className="text-zinc-400 dark:text-zinc-600">Tap a day for details</span>
+        )}
+      </div>
+
+      {/* Legend */}
       <div className="flex items-center gap-1 mt-3 text-[10px] text-zinc-500">
         <span>Less</span>
-        <span className="w-2.5 h-2.5 rounded-sm bg-zinc-100 dark:bg-zinc-800" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/40" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/70" />
+        <span className="w-2.5 h-2.5 rounded-sm bg-zinc-100 dark:bg-zinc-800/60" />
+        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/30" />
+        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/55" />
+        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/80" />
         <span className="w-2.5 h-2.5 rounded-sm bg-brand-500" />
         <span>More</span>
       </div>

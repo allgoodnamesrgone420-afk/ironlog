@@ -15,11 +15,16 @@ export function muscleSetsThisWeek(workouts: Workout[]): MuscleVolume {
   const totals: MuscleVolume = { ...empty };
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
-      const def = findExercise(ex.name);
       const numSets = ex.sets?.filter((s) => s.completed).length ?? 0;
-      if (!def || numSets === 0) continue;
-      for (const m of def.primary) totals[m] += numSets;
-      for (const m of def.secondary ?? []) totals[m] += numSets * 0.5;
+      if (numSets === 0) continue;
+
+      // Prefer the curated library; fall back to user-tagged muscles on custom exercises.
+      const def = findExercise(ex.name);
+      const primary = def?.primary ?? ex.muscles ?? [];
+      const secondary = def?.secondary ?? [];
+
+      for (const m of primary) totals[m] += numSets;
+      for (const m of secondary) totals[m] += numSets * 0.5;
     }
   }
   return totals;

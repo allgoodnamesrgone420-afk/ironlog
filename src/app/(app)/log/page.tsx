@@ -12,10 +12,13 @@ import { useDraft } from "@/hooks/useDraft";
 import { useToast } from "@/providers/ToastProvider";
 import { useUnits } from "@/providers/UnitsProvider";
 import { saveWorkout } from "@/lib/firebase/repository";
+import { useCustomExercises } from "@/hooks/useCustomExercises";
 import { workoutVolume } from "@/lib/analytics/volume";
 import { lastSessionFor } from "@/lib/analytics/personal-records";
+import { findExercise } from "@/lib/data/exercises";
+import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { uid } from "@/lib/utils";
-import type { Exercise, WorkoutSet } from "@/types/workout";
+import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Confirm } from "@/components/ui/Confirm";
@@ -48,6 +51,7 @@ export default function LogPage() {
   const toast = useToast();
   const { units: _units } = useUnits();
   const { workouts } = useWorkouts();
+  const { exercises: customExercises, upsert: upsertCustomExercise } = useCustomExercises();
 
   const [draft, setDraft, clearDraft] = useDraft<Draft>(user?.uid, "draft", {
     name: "Evening Lift",
@@ -175,6 +179,19 @@ export default function LogPage() {
         totalVolume: workoutVolume({ exercises: valid }),
         durationSec: Math.round((Date.now() - draft.startedAt) / 1000),
       });
+
+      // Save any custom exercises (with muscle tags) to the user's local library
+      // so they appear in autocomplete next time. Local-only — no network, no rules.
+      const seen = new Set<string>();
+      for (const e of valid) {
+        if (findExercise(e.name)) continue; // library hit, skip
+        if (!e.muscles || e.muscles.length === 0) continue;
+        const k = e.name.trim().toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        upsertCustomExercise(e.name, e.muscles);
+      }
+
       clearDraft();
       toast.success("Workout saved");
       router.push("/dashboard");
@@ -246,8 +263,54 @@ export default function LogPage() {
                       <div className="p-5 pb-3 relative">
                         <ExerciseAutocomplete
                           value={exercise.name}
-                          onChange={(name) => updateExercise(exercise.id, { name })}
+                          customExercises={customExercises}
+                          onChange={(name) => {
+                            const patch: Partial<Exercise> = { name };
+                            if (!exercise.notes?.trim() && name.trim()) {
+                              const pastNote = findPastNote(workouts, name);
+                              if (pastNote) patch.notes = pastNote;
+                            }
+                            updateExercise(exercise.id, patch);
+                          }}
+                          onPick={(s) => {
+                            // When picking a custom exercise, auto-fill its saved muscle tags.
+                            if (s.muscles && s.muscles.length > 0 && !findExercise(s.name)) {
+                              updateExercise(exercise.id, { muscles: s.muscles });
+                            }
+                          }}
                         />
+
+                        {/* Muscle picker — only when the name isn't recognised by the library */}
+                        {exercise.name.trim() && !findExercise(exercise.name) && (
+                          <div className="mt-2">
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
+                              Custom exercise — tag muscles
+                            </p>
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {(["chest","back","shoulders","biceps","triceps","forearms","core","quads","hamstrings","glutes","calves","cardio"] as MuscleGroup[]).map((m) => {
+                                const selected = (exercise.muscles ?? []).includes(m);
+                                return (
+                                  <button
+                                    key={m}
+                                    type="button"
+                                    onClick={() => {
+                                      const cur = exercise.muscles ?? [];
+                                      const next = selected ? cur.filter((x) => x !== m) : [...cur, m];
+                                      updateExercise(exercise.id, { muscles: next });
+                                    }}
+                                    className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${
+                                      selected
+                                        ? "bg-brand-500 text-white"
+                                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                                    }`}
+                                  >
+                                    {MUSCLE_LABELS[m]}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Last-session hint (progressive overload) */}
                         {last && exercise.name && (
@@ -446,4 +509,19 @@ function groupBySupersets(exercises: Exercise[]): Exercise[][] {
   });
   if (current.length) groups.push(current);
   return groups;
+}
+
+/** Finds the most recent non-empty notes for an exercise name across past workouts. */
+function findPastNote(workouts: { date: Date; exercises: Exercise[] }[], name: string): string | undefined {
+  const target = name.trim().toLowerCase();
+  if (!target) return undefined;
+  const sorted = [...workouts].sort((a, b) => b.date.getTime() - a.date.getTime());
+  for (const w of sorted) {
+    for (const ex of w.exercises) {
+      if (ex.name.trim().toLowerCase() === target && ex.notes?.trim()) {
+        return ex.notes;
+      }
+    }
+  }
+  return undefined;
 }

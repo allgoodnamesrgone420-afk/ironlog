@@ -4,52 +4,69 @@ import { useMemo } from "react";
 import type { Workout, MuscleGroup } from "@/types/workout";
 import { findExercise } from "@/lib/data/exercises";
 import { startOfWeek } from "@/lib/utils";
+import { useMuscleTargets, type DisplayMuscle } from "@/hooks/useMuscleTargets";
+import { useTrackedMuscles } from "@/hooks/useTrackedMuscles";
 
-interface MuscleRow {
-  key: MuscleGroup | "legs";
+export interface MuscleRowDef {
+  key: DisplayMuscle;
   label: string;
   matches: MuscleGroup[];
   color: string;
-  target: number;
 }
 
-const ROWS: MuscleRow[] = [
-  { key: "chest", label: "Chest", matches: ["chest"], color: "#ef4444", target: 12 },
-  { key: "back", label: "Back", matches: ["back"], color: "#3b82f6", target: 14 },
-  { key: "shoulders", label: "Shoulders", matches: ["shoulders"], color: "#a855f7", target: 8 },
-  { key: "biceps", label: "Biceps", matches: ["biceps"], color: "#ec4899", target: 8 },
-  { key: "triceps", label: "Triceps", matches: ["triceps"], color: "#f97316", target: 8 },
-  { key: "legs", label: "Legs", matches: ["quads", "hamstrings", "glutes", "calves"], color: "#22c55e", target: 16 },
-  { key: "core", label: "Core", matches: ["core"], color: "#eab308", target: 6 },
+/** Canonical definition of every selectable muscle row. */
+export const ALL_MUSCLE_ROWS: MuscleRowDef[] = [
+  { key: "chest", label: "Chest", matches: ["chest"], color: "#ef4444" },
+  { key: "back", label: "Back", matches: ["back"], color: "#3b82f6" },
+  { key: "shoulders", label: "Shoulders", matches: ["shoulders"], color: "#a855f7" },
+  { key: "biceps", label: "Biceps", matches: ["biceps"], color: "#ec4899" },
+  { key: "triceps", label: "Triceps", matches: ["triceps"], color: "#f97316" },
+  { key: "forearms", label: "Forearms", matches: ["forearms"], color: "#14b8a6" },
+  { key: "core", label: "Core", matches: ["core"], color: "#eab308" },
+  { key: "quads", label: "Quads", matches: ["quads"], color: "#22c55e" },
+  { key: "hamstrings", label: "Hamstrings", matches: ["hamstrings"], color: "#16a34a" },
+  { key: "glutes", label: "Glutes", matches: ["glutes"], color: "#84cc16" },
+  { key: "calves", label: "Calves", matches: ["calves"], color: "#10b981" },
+  { key: "legs", label: "Legs (combined)", matches: ["quads", "hamstrings", "glutes", "calves"], color: "#22c55e" },
+  { key: "cardio", label: "Cardio", matches: ["cardio"], color: "#06b6d4" },
 ];
 
+const ROW_BY_KEY: Record<DisplayMuscle, MuscleRowDef> = Object.fromEntries(
+  ALL_MUSCLE_ROWS.map((r) => [r.key, r]),
+) as Record<DisplayMuscle, MuscleRowDef>;
+
 export function MuscleBalance({ workouts }: { workouts: Workout[] }) {
+  const { targets } = useMuscleTargets();
+  const { tracked } = useTrackedMuscles();
+
+  const rows = tracked.map((k) => ROW_BY_KEY[k]).filter(Boolean);
+
   const counts = useMemo(() => {
     const start = startOfWeek();
     const thisWeek = workouts.filter((w) => w.date >= start);
     const out: Record<string, number> = {};
-    for (const r of ROWS) out[r.key] = 0;
+    for (const r of rows) out[r.key] = 0;
 
     for (const w of thisWeek) {
       for (const ex of w.exercises ?? []) {
-        const def = findExercise(ex.name);
-        if (!def) continue;
         const completed = ex.sets.filter((s) => s.completed).length;
         if (completed === 0) continue;
 
-        for (const r of ROWS) {
-          if (def.primary.some((m) => r.matches.includes(m))) {
-            out[r.key]! += completed;
-          } else if ((def.secondary ?? []).some((m) => r.matches.includes(m))) {
-            out[r.key]! += completed * 0.5;
-          }
+        const def = findExercise(ex.name);
+        const primary = def?.primary ?? ex.muscles ?? [];
+        const secondary = def?.secondary ?? [];
+
+        for (const r of rows) {
+          if (primary.some((m) => r.matches.includes(m))) out[r.key]! += completed;
+          else if (secondary.some((m) => r.matches.includes(m))) out[r.key]! += completed * 0.5;
         }
       }
     }
     return out;
-  }, [workouts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workouts, tracked]);
 
-  const totalSets = ROWS.reduce((a, r) => a + (counts[r.key] ?? 0), 0);
+  const totalSets = rows.reduce((a, r) => a + (counts[r.key] ?? 0), 0);
 
   return (
     <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
@@ -66,38 +83,45 @@ export function MuscleBalance({ workouts }: { workouts: Workout[] }) {
         </div>
       </div>
 
-      <ul className="space-y-3">
-        {ROWS.map((r) => {
-          const value = Math.round(counts[r.key] ?? 0);
-          const pct = Math.min(100, Math.round((value / r.target) * 100));
-          const isOver = value >= r.target;
-          return (
-            <li key={r.key} className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline mb-1">
-                  <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{r.label}</span>
-                  <span
-                    className="text-xs"
-                    style={{ fontVariantNumeric: "tabular-nums" }}
-                  >
-                    <span className={isOver ? "text-emerald-500 font-bold" : "text-zinc-700 dark:text-zinc-300 font-semibold"}>
-                      {value}
+      {rows.length === 0 ? (
+        <p className="text-xs text-zinc-500 italic text-center py-4">
+          Pick muscles to track in Settings → Tracked muscles.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {rows.map((r) => {
+            const value = Math.round(counts[r.key] ?? 0);
+            const target = targets[r.key];
+            const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+            const isOver = target > 0 && value >= target;
+            return (
+              <li key={r.key} className="flex items-center gap-3">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{r.label}</span>
+                    <span className="text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      <span className={isOver ? "text-emerald-500 font-bold" : "text-zinc-700 dark:text-zinc-300 font-semibold"}>
+                        {value}
+                      </span>
+                      <span className="text-zinc-400 dark:text-zinc-600"> / {target}</span>
                     </span>
-                    <span className="text-zinc-400 dark:text-zinc-600"> / {r.target}</span>
-                  </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, backgroundColor: r.color }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${pct}%`, backgroundColor: r.color }}
-                  />
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }
+
+/** Back-compat: settings still imports this name. */
+export const MUSCLE_BALANCE_ROWS = ALL_MUSCLE_ROWS;
