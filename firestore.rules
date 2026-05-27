@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ──────────────────────────────────────────────────
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    function validKgReps(s) {
+      return s.kg is number && s.kg >= 0 && s.kg <= 1000
+          && s.reps is number && s.reps >= 0 && s.reps <= 1000
+          && (!('rpe' in s) || (s.rpe is number && s.rpe >= 0 && s.rpe <= 10));
+    }
+
+    function validWorkout(w) {
+      return w.name is string && w.name.size() > 0 && w.name.size() <= 80
+          && w.exercises is list && w.exercises.size() <= 50
+          && (!('totalVolume' in w) || w.totalVolume is number);
+    }
+
+    // ─── User profile (units, theme, goals) ───────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ─── Workouts ────────────────────────────────────────────────
+    match /users/{uid}/workouts/{doc} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validWorkout(request.resource.data);
+      allow update: if isOwner(uid) && validWorkout(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    // ─── Templates / routines ────────────────────────────────────
+    match /users/{uid}/templates/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ─── Body metrics (weight, measurements) ─────────────────────
+    match /users/{uid}/bodyMetrics/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ─── Coach chat history ──────────────────────────────────────
+    match /users/{uid}/coachChats/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ─── Rate-limit counters (server-only writes via Admin SDK) ──
+    match /rateLimits/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

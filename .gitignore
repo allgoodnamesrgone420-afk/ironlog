@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# next
+.next/
+out/
+build/
+dist/
+
+# env — never commit
+.env
+.env.*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# editors
+.vscode/
+.idea/
+.DS_Store
+
+# firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# coverage
+coverage/
