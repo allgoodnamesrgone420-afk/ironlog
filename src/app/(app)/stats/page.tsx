@@ -130,20 +130,8 @@ export default function StatsPage() {
     );
   }
 
-  if (workouts.length === 0) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Stats</h1>
-        <EmptyState
-          icon={<BarChart3 className="w-6 h-6" />}
-          title="No data to chart yet"
-          description="Log a few workouts and your progression curves will appear here."
-        />
-      </div>
-    );
-  }
-
   const weeklyMax = Math.max(...weekly.map((w) => w.kg), 1);
+  const hasWorkouts = workouts.length > 0;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -219,22 +207,28 @@ export default function StatsPage() {
             <p className="text-xs text-zinc-500">Last 12 weeks</p>
           </div>
         </div>
-        <div className="flex items-end justify-between gap-1 h-32">
-          {weekly.map((w, i) => {
-            const v = fromKg(w.kg, units);
-            const h = (w.kg / weeklyMax) * 100;
-            return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${w.label}: ${Math.round(v)} ${units}`}>
-                <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-t-md relative overflow-hidden" style={{ height: "100%" }}>
-                  <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-brand-700 to-brand-500 rounded-t-md transition-all duration-500 group-hover:from-brand-600 group-hover:to-brand-400"
-                    style={{ height: `${Math.max(2, h)}%` }}
-                  />
+        {hasWorkouts ? (
+          <div className="flex items-end justify-between gap-1 h-32">
+            {weekly.map((w, i) => {
+              const v = fromKg(w.kg, units);
+              const h = (w.kg / weeklyMax) * 100;
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${w.label}: ${Math.round(v)} ${units}`}>
+                  <div className="w-full bg-zinc-100 dark:bg-zinc-800 rounded-t-md relative overflow-hidden" style={{ height: "100%" }}>
+                    <div
+                      className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-brand-700 to-brand-500 rounded-t-md transition-all duration-500 group-hover:from-brand-600 group-hover:to-brand-400"
+                      style={{ height: `${Math.max(2, h)}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="h-32 flex items-center justify-center text-xs text-zinc-500 italic">
+            Log a workout to start tracking weekly volume.
+          </div>
+        )}
         <div className="flex justify-between text-[10px] text-zinc-400 dark:text-zinc-600 mt-2">
           <span>{weekly[0]?.label}</span>
           <span>{weekly[weekly.length - 1]?.label}</span>

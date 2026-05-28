@@ -1,47 +1,72 @@
-/* Tiny offline shell — caches the app shell so the UI loads with no network.
-   Firebase calls themselves require network and will fail offline (expected). */
+/* Network-first SW. Fixes "stale on one device" by always trying the network
+   for page navigations and only falling back to cache when offline.
+   Bump CACHE on releases to force-evict the old shell. */
 
-const CACHE = "ironlog-shell-v1";
-const SHELL = ["/", "/dashboard", "/manifest.json", "/icon.svg"];
+const CACHE = "ironlog-shell-v3";
+const STATIC = ["/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) =>
       Promise.all(
-        SHELL.map((url) =>
-          fetch(url)
+        STATIC.map((url) =>
+          fetch(url, { cache: "no-cache" })
             .then((r) => (r.ok ? cache.put(url, r.clone()) : null))
             .catch(() => null),
         ),
       ),
     ),
   );
+  // Activate immediately on first install — no waiting for old tabs to close.
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      // Take control of open clients so they get the new SW immediately.
+      await self.clients.claim();
+    })(),
   );
 });
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
-  // Never cache POST or API routes — they need fresh auth + responses.
-  if (request.method !== "GET" || request.url.includes("/api/")) return;
+
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith("/api/")) return;
+
+  // Page navigations: network-first, fall back to cache only when offline
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((resp) => {
+          if (resp.ok) {
+            const clone = resp.clone();
+            caches.open(CACHE).then((c) => c.put(request, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(request).then((c) => c || caches.match("/dashboard"))),
+    );
+    return;
+  }
+
+  // Static assets: cache-first
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ??
-        fetch(request)
-          .then((resp) => {
-            // Cache successful navigations
-            if (resp.ok && request.mode === "navigate") {
-              const clone = resp.clone();
-              caches.open(CACHE).then((c) => c.put(request, clone));
-            }
-            return resp;
-          })
-          .catch(() => caches.match("/dashboard")),
+    caches.match(request).then((cached) =>
+      cached ??
+      fetch(request).then((resp) => {
+        if (resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE).then((c) => c.put(request, clone));
+        }
+        return resp;
+      }),
     ),
   );
 });

@@ -25,7 +25,7 @@ import { Confirm } from "@/components/ui/Confirm";
 import { SetRow } from "@/components/workout/SetRow";
 import { ExerciseAutocomplete } from "@/components/workout/ExerciseAutocomplete";
 import { PlateCalculator } from "@/components/workout/PlateCalculator";
-import { RestTimer } from "@/components/workout/RestTimer";
+import { useTimer } from "@/providers/TimerProvider";
 import { AIGenerateModal } from "@/components/workout/AIGenerateModal";
 
 interface Draft {
@@ -61,8 +61,7 @@ export default function LogPage() {
 
   const [aiOpen, setAiOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [restTrigger, setRestTrigger] = useState(0);
-  const [restSec, setRestSec] = useState(90);
+  const timer = useTimer();
 
   // Handle ?repeat=workoutId pre-fill
   useEffect(() => {
@@ -384,10 +383,7 @@ export default function LogPage() {
                             canDelete={exercise.sets.length > 1}
                             onChange={(patch) => updateSet(exercise.id, set.id, patch)}
                             onDelete={() => removeSet(exercise.id, set.id)}
-                            onComplete={() => {
-                              setRestSec(exercise.restSec ?? 90);
-                              setRestTrigger((t) => t + 1);
-                            }}
+                            onComplete={() => timer.start(exercise.restSec ?? 90)}
                           />
                         ))}
                       </div>
@@ -483,7 +479,6 @@ export default function LogPage() {
         />
       </div>
 
-      <RestTimer defaultSec={restSec} trigger={restTrigger} />
 
       <AIGenerateModal
         open={aiOpen}

@@ -1,13 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { Pause, Play, X, Minus, Plus, RotateCcw } from "lucide-react";
-import { useRestTimer } from "@/hooks/useRestTimer";
-
-interface Props {
-  defaultSec: number;
-  trigger: number;
-}
+import { useTimer } from "@/providers/TimerProvider";
 
 function fmt(sec: number) {
   const m = Math.floor(sec / 60);
@@ -15,13 +9,13 @@ function fmt(sec: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function RestTimer({ defaultSec, trigger }: Props) {
-  const { secondsLeft, totalDuration, status, start, pause, resume, cancel, addTime } = useRestTimer();
-
-  useEffect(() => {
-    if (trigger > 0) start(defaultSec);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
+/**
+ * Floating rest timer. Reads state from the global TimerProvider so it stays
+ * alive when the user navigates between Log / Coach / Stats etc.
+ * Rendered once in the (app) layout — not per-page.
+ */
+export function RestTimer() {
+  const { status, secondsLeft, totalDuration, pause, resume, cancel, addTime, start } = useTimer();
 
   if (status === "idle") return null;
 
@@ -52,14 +46,15 @@ export function RestTimer({ defaultSec, trigger }: Props) {
             className="transition-all duration-300"
           />
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div
+          className="absolute inset-0 flex items-center justify-center text-xs font-bold"
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
           {fmt(secondsLeft)}
         </div>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-xs text-zinc-400">
-          {isDone ? "Done" : isPaused ? "Paused" : "Rest"}
-        </div>
+        <div className="text-xs text-zinc-400">{isDone ? "Done" : isPaused ? "Paused" : "Rest"}</div>
         <div className="text-sm font-semibold truncate">
           {isDone ? "Next set, let's go" : isPaused ? "Tap play to resume" : `${totalDuration}s default`}
         </div>
@@ -82,7 +77,7 @@ export function RestTimer({ defaultSec, trigger }: Props) {
         {isDone ? (
           <button
             aria-label="Restart timer"
-            onClick={() => start(totalDuration || defaultSec)}
+            onClick={() => start(totalDuration || 60)}
             className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
           >
             <RotateCcw className="w-4 h-4" />

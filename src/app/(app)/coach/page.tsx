@@ -64,13 +64,26 @@ ${history}`;
       const text = typeof result === "string" ? result : JSON.stringify(result);
       await appendCoachMessage(user.uid, "model", text || "Hmm, no response — try again?");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "I can't reach the model right now.";
-      toast.error(msg);
-      await appendCoachMessage(user.uid, "model", "Sorry, I hit an error. Try again in a moment.");
+      const raw = e instanceof Error ? e.message : "Unknown error";
+      const friendly = formatCoachError(raw);
+      toast.error(friendly);
+      await appendCoachMessage(user.uid, "model", `_Couldn't reach the coach:_ **${friendly}**`);
     } finally {
       setTyping(false);
     }
   };
+
+  /** Map server / network errors to actionable copy. */
+  function formatCoachError(msg: string): string {
+    const m = msg.toLowerCase();
+    if (m.includes("unauthorized") || m.includes("401")) return "You got signed out — refresh and sign in again.";
+    if (m.includes("rate limit") || m.includes("429")) return msg;
+    if (m.includes("server misconfigured")) return "Server is missing the Gemini key. Add GEMINI_API_KEY to Vercel env vars.";
+    if (m.includes("model error") || m.includes("502")) return "The model is having trouble. Try again in a moment.";
+    if (m.includes("invalid request")) return "That message had an unexpected shape — try rephrasing.";
+    if (m.includes("failed to fetch") || m.includes("network")) return "Network issue — check your connection.";
+    return msg;
+  }
 
   const suggestions = [
     "What's my strongest lift?",

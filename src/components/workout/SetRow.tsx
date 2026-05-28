@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Circle, Trash2 } from "lucide-react";
 import type { WorkoutSet } from "@/types/workout";
 import { useUnits } from "@/providers/UnitsProvider";
@@ -8,7 +9,6 @@ import { fromKg, toKg } from "@/lib/units/converter";
 interface Props {
   index: number;
   set: WorkoutSet;
-  /** Suggested pre-fill from last session, if any */
   suggestion?: { kg: number; reps: number };
   canDelete: boolean;
   onChange: (patch: Partial<WorkoutSet>) => void;
@@ -16,9 +16,71 @@ interface Props {
   onComplete: () => void;
 }
 
+/**
+ * Input that keeps its own text state so the user can type intermediate values
+ * like "20." or "0.5" without the canonical numeric state stomping them.
+ */
+function NumberField({
+  externalValue,
+  onValue,
+  decimal,
+  placeholder,
+  className,
+}: {
+  externalValue: number;
+  onValue: (n: number) => void;
+  decimal: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const formatExternal = (v: number) => (v > 0 ? (Number.isInteger(v) ? v.toString() : v.toString()) : "");
+  const [text, setText] = useState<string>(formatExternal(externalValue));
+  const lastEmittedRef = useRef<number>(externalValue);
+
+  // Sync from external changes (suggestion fill, voice, undo).
+  // Skip when the external value matches what the user's text would parse to —
+  // that means we're seeing our own emit echo back.
+  useEffect(() => {
+    if (externalValue === lastEmittedRef.current) return;
+    setText(formatExternal(externalValue));
+    lastEmittedRef.current = externalValue;
+  }, [externalValue]);
+
+  return (
+    <input
+      type="text"
+      inputMode={decimal ? "decimal" : "numeric"}
+      value={text}
+      placeholder={placeholder}
+      className={className}
+      onChange={(e) => {
+        let next = e.target.value;
+        // Accept "," as decimal separator
+        if (decimal) next = next.replace(",", ".");
+        // Strip obvious junk; allow digits, single dot, leading nothing
+        if (decimal) next = next.replace(/[^0-9.]/g, "");
+        else next = next.replace(/[^0-9]/g, "");
+        // Collapse multiple dots — keep only the first
+        if (decimal) {
+          const parts = next.split(".");
+          if (parts.length > 2) next = parts[0] + "." + parts.slice(1).join("");
+        }
+        setText(next);
+        const parsed = parseFloat(next);
+        const out = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+        lastEmittedRef.current = out;
+        onValue(out);
+      }}
+    />
+  );
+}
+
 export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, onComplete }: Props) {
   const { units } = useUnits();
   const showSuggestion = !set.completed && !set.kg && !set.reps && suggestion;
+
+  // Display value for kg is in the user's chosen unit
+  const displayKg = fromKg(set.kg, units);
 
   return (
     <div
@@ -28,30 +90,19 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
     >
       <div className="text-center font-medium text-zinc-400 dark:text-zinc-600 text-sm">{index + 1}</div>
 
-      <input
-        type="text"
-        inputMode="decimal"
+      <NumberField
+        externalValue={displayKg}
+        onValue={(v) => onChange({ kg: toKg(v, units) })}
+        decimal
         placeholder={showSuggestion ? `${fromKg(suggestion!.kg, units).toFixed(1)}` : units}
-        value={set.kg ? fromKg(set.kg, units).toString() : ""}
-        /* completed sets stay editable — typos happen */
-        onChange={(e) => {
-          const raw = e.target.value.replace(",", ".");
-          const num = parseFloat(raw);
-          onChange({ kg: Number.isFinite(num) && num >= 0 ? toKg(num, units) : 0 });
-        }}
         className="w-full text-center bg-zinc-50 dark:bg-zinc-800 rounded-lg py-2.5 font-bold text-zinc-800 dark:text-zinc-100 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50 placeholder-zinc-300 dark:placeholder-zinc-600"
       />
 
-      <input
-        type="text"
-        inputMode="numeric"
+      <NumberField
+        externalValue={set.reps}
+        onValue={(v) => onChange({ reps: Math.round(v) })}
+        decimal={false}
         placeholder={showSuggestion ? `${suggestion!.reps}` : "reps"}
-        value={set.reps || ""}
-        /* completed sets stay editable — typos happen */
-        onChange={(e) => {
-          const num = parseInt(e.target.value, 10);
-          onChange({ reps: Number.isFinite(num) && num >= 0 ? num : 0 });
-        }}
         className="w-full text-center bg-zinc-50 dark:bg-zinc-800 rounded-lg py-2.5 font-bold text-zinc-800 dark:text-zinc-100 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50 placeholder-zinc-300 dark:placeholder-zinc-600"
       />
 
