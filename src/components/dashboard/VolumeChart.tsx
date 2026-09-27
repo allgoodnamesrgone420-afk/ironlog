@@ -4,6 +4,8 @@ import { useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { useUnits } from "@/providers/UnitsProvider";
 import { fromKg } from "@/lib/units/converter";
+import { CountUp } from "@/components/ui/CountUp";
+import { useSeen } from "@/hooks/useSeen";
 
 interface Point {
   kg: number;
@@ -17,6 +19,7 @@ const H = 140;
 export function VolumeChart({ data }: { data: Point[] }) {
   const { units } = useUnits();
   const [hover, setHover] = useState<number | null>(null);
+  const [ref, seen] = useSeen<HTMLElement>();
 
   if (!data || data.length === 0) {
     return (
@@ -35,7 +38,13 @@ export function VolumeChart({ data }: { data: Point[] }) {
   const fmtDate = (d: Date) => d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
-    <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }} aria-label={`Volume, last ${data.length} sessions`}>
+    <section
+      ref={ref}
+      data-seen={seen}
+      className="plunk face-card p-4"
+      style={{ ["--d" as string]: "4px" }}
+      aria-label={`Volume, last ${data.length} sessions`}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <p className="label">Volume · last {data.length} sessions</p>
         <p className="num text-[11px] text-ink-3">
@@ -46,7 +55,7 @@ export function VolumeChart({ data }: { data: Point[] }) {
       {/* Readout (hover, tap or keyboard). Fixed height so the chart never shifts under the pointer. */}
       <div className="mt-2 h-14" aria-live="polite">
         <p className="num text-3xl font-extrabold tracking-tight">
-          {Math.round(shown).toLocaleString()}
+          <CountUp value={Math.round(shown)} duration={hover === null ? 600 : 250} start={seen} />
           <span className="ml-1 text-sm font-semibold text-ink-3">{units}</span>
         </p>
         <p className="truncate text-xs text-ink-2">
@@ -72,8 +81,12 @@ export function VolumeChart({ data }: { data: Point[] }) {
               aria-pressed={hover === i}
             >
               <span
-                className="block w-full bg-blue transition-opacity duration-150"
-                style={{ height: Math.max(3, (vals[i]! / max) * H), opacity: hover === null || hover === i ? 1 : 0.35 }}
+                className="grow-y block w-full bg-blue transition-opacity duration-150"
+                style={{
+                  height: Math.max(3, (vals[i]! / max) * H),
+                  opacity: hover === null || hover === i ? 1 : 0.35,
+                  ["--delay" as string]: `${i * 45}ms`,
+                }}
               />
             </button>
           ))}

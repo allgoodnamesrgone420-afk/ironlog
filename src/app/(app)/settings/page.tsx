@@ -218,10 +218,7 @@ function TrackedMusclesEditor() {
               onClick={() => toggle(r.key)}
               className="chip w-full justify-between text-left"
             >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 border border-black/30" style={{ backgroundColor: r.color }} />
-                <span className="truncate">{r.label}</span>
-              </span>
+              <span className="truncate">{r.label}</span>
               {on && <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={3} />}
             </button>
           );
@@ -250,7 +247,6 @@ function MuscleTargetsEditor() {
       <ul className="divide-y divide-line-soft border-y border-line-soft">
         {visibleRows.map((r) => (
           <li key={r.key} className="flex items-center gap-3 py-2">
-            <span className="h-2.5 w-2.5 shrink-0" style={{ backgroundColor: r.color }} />
             <span className="flex-1 text-sm font-semibold">{r.label}</span>
             <div className="flex items-center gap-1">
               <button

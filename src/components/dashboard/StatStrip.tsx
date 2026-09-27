@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { startOfWeek } from "@/lib/utils";
 import { workoutSetCount } from "@/lib/analytics/volume";
 import { countPRsSince } from "@/lib/analytics/personal-records";
+import { CountUp } from "@/components/ui/CountUp";
 
 interface Props {
   workouts: Workout[];
@@ -31,7 +32,9 @@ export function StatStrip({ workouts, streak }: Props) {
       {items.map((it) => (
         <div key={it.label} className="card border-t-4 p-3" style={{ borderTopColor: it.color }}>
           <p className="label">{it.label}</p>
-          <p className="num mt-1 text-2xl font-extrabold tracking-tight">{it.value}</p>
+          <p className="num mt-1 text-2xl font-extrabold tracking-tight">
+            <CountUp value={it.value} />
+          </p>
           <p className="whitespace-nowrap text-xs font-semibold text-ink-3">{it.sub}</p>
         </div>
       ))}

@@ -2,10 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Plus, Trash2, Save, Calendar, Settings2, TrendingUp, MessageSquareQuote,
-  Sparkles, Link as LinkIcon, ChevronUp, ChevronDown,
-} from "lucide-react";
+import { Link as LinkIcon, Plus, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useDraft } from "@/hooks/useDraft";
@@ -17,20 +14,15 @@ import { usePrograms } from "@/hooks/usePrograms";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { resolveDay, nextCursor, clampCursor } from "@/lib/programs/resolve";
 import { workoutVolume } from "@/lib/analytics/volume";
-import { lastSessionFor } from "@/lib/analytics/personal-records";
+import { bestSetFor, lastSessionFor } from "@/lib/analytics/personal-records";
 import { findExercise } from "@/lib/data/exercises";
-import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { uid } from "@/lib/utils";
-import { displayWeight, roundToPlate } from "@/lib/units/converter";
-import type { Units } from "@/types/user";
-import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
+import type { Exercise, WorkoutSet } from "@/types/workout";
 import type { ProgramRef } from "@/types/program";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { Confirm } from "@/components/ui/Confirm";
-import { SetRow } from "@/components/workout/SetRow";
-import { ExerciseAutocomplete } from "@/components/workout/ExerciseAutocomplete";
-import { PlateCalculator } from "@/components/workout/PlateCalculator";
+import { ExerciseCard } from "@/components/workout/ExerciseCard";
+import { SessionBar } from "@/components/workout/SessionBar";
 import { useTimer } from "@/providers/TimerProvider";
 import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
 import { useBarbellKg } from "@/hooks/useBarbellKg";
@@ -54,6 +46,11 @@ function blankExercise(name = ""): Exercise {
     sets: [{ id: uid(), kg: 0, reps: 0, completed: false }],
   };
 }
+
+/** A draft opened this long ago with no set done yet restarts its clock. */
+const STALE_DRAFT_MS = 3 * 60 * 60 * 1000;
+
+const hasCompletedSet = (exercises: Exercise[]) => exercises.some((e) => e.sets.some((s) => s.completed));
 
 // useSearchParams() must sit under a Suspense boundary for the static export
 // (and for streaming SSR on web). Keep the page logic in an inner component.
@@ -134,78 +131,75 @@ function LogPageInner() {
 
   const groups = useMemo(() => groupBySupersets(draft.exercises), [draft.exercises]);
 
-  // ─── Mutators ──────────────────────────────────────────────────────
-  const setExercises = (next: Exercise[]) => setDraft({ ...draft, exercises: next });
+  // A draft opened long ago and never started (no set done) gets a fresh clock,
+  // so the header doesn't count the hours it sat unused.
+  const started = hasCompletedSet(draft.exercises);
+  useEffect(() => {
+    if (!started && Date.now() - draft.startedAt > STALE_DRAFT_MS) setDraft((d) => ({ ...d, startedAt: Date.now() }));
+  }, [started, draft.startedAt, setDraft]);
 
-  const addExercise = () => setExercises([...draft.exercises, blankExercise()]);
+  const setsTotal = draft.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const setsDone = draft.exercises.reduce((n, e) => n + e.sets.filter((s) => s.completed).length, 0);
+  const volumeDone = useMemo(
+    () =>
+      workoutVolume(
+        { exercises: draft.exercises.map((e) => ({ ...e, sets: e.sets.filter((s) => s.completed) })) },
+        bodyweightKg,
+      ),
+    [draft.exercises, bodyweightKg],
+  );
+
+  // ─── Mutators ──────────────────────────────────────────────────────
+  // Functional updates: one gesture can make two edits (picking a suggestion
+  // sets the name, then its muscles), and each must see the other's result.
+  const editExercises = (fn: (list: Exercise[]) => Exercise[]) =>
+    setDraft((d) => ({ ...d, exercises: fn(d.exercises) }));
+
+  const addExercise = () => editExercises((list) => [...list, blankExercise()]);
 
   const addSuperset = (afterId: string, supersetId?: string | null) => {
     const sid = supersetId ?? uid();
-    const next = draft.exercises.flatMap((ex) => {
-      if (ex.id === afterId) {
-        return [
-          { ...ex, supersetId: sid },
-          { ...blankExercise(), supersetId: sid },
-        ];
-      }
-      return [ex];
-    });
-    setExercises(next);
+    editExercises((list) =>
+      list.flatMap((ex) => (ex.id === afterId ? [{ ...ex, supersetId: sid }, { ...blankExercise(), supersetId: sid }] : [ex])),
+    );
   };
 
-  const removeExercise = (id: string) =>
-    setExercises(draft.exercises.filter((e) => e.id !== id));
+  const removeExercise = (id: string) => editExercises((list) => list.filter((e) => e.id !== id));
 
   /** Move an entire group (single exercise OR full superset) up or down. */
-  const moveGroup = (groupIndex: number, direction: -1 | 1) => {
-    const grouped = groupBySupersets(draft.exercises);
-    const target = groupIndex + direction;
-    if (target < 0 || target >= grouped.length) return;
-    const next = [...grouped];
-    const temp = next[groupIndex]!;
-    next[groupIndex] = next[target]!;
-    next[target] = temp;
-    setExercises(next.flat());
-  };
+  const moveGroup = (groupIndex: number, direction: -1 | 1) =>
+    editExercises((list) => {
+      const grouped = groupBySupersets(list);
+      const target = groupIndex + direction;
+      if (target < 0 || target >= grouped.length) return list;
+      [grouped[groupIndex], grouped[target]] = [grouped[target]!, grouped[groupIndex]!];
+      return grouped.flat();
+    });
 
   const updateExercise = (id: string, patch: Partial<Exercise>) =>
-    setExercises(draft.exercises.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    editExercises((list) => list.map((e) => (e.id === id ? { ...e, ...patch } : e)));
 
   const addSet = (exId: string) =>
-    setExercises(
-      draft.exercises.map((e) =>
-        e.id !== exId
-          ? e
-          : {
-              ...e,
-              sets: [
-                ...e.sets,
-                {
-                  id: uid(),
-                  kg: e.sets[e.sets.length - 1]?.kg ?? 0,
-                  reps: e.sets[e.sets.length - 1]?.reps ?? 0,
-                  completed: false,
-                },
-              ],
-            },
-      ),
+    editExercises((list) =>
+      list.map((e) => {
+        if (e.id !== exId) return e;
+        const prev = e.sets[e.sets.length - 1];
+        return { ...e, sets: [...e.sets, { id: uid(), kg: prev?.kg ?? 0, reps: prev?.reps ?? 0, completed: false }] };
+      }),
     );
 
   const updateSet = (exId: string, setId: string, patch: Partial<WorkoutSet>) =>
-    setExercises(
-      draft.exercises.map((e) =>
-        e.id !== exId
-          ? e
-          : { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) },
-      ),
-    );
+    setDraft((d) => {
+      const exercises = d.exercises.map((e) =>
+        e.id !== exId ? e : { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) },
+      );
+      // First set of a draft that sat open for hours: the session starts now.
+      const restart = patch.completed && !hasCompletedSet(d.exercises) && Date.now() - d.startedAt > STALE_DRAFT_MS;
+      return { ...d, exercises, startedAt: restart ? Date.now() : d.startedAt };
+    });
 
   const removeSet = (exId: string, setId: string) =>
-    setExercises(
-      draft.exercises.map((e) =>
-        e.id !== exId ? e : { ...e, sets: e.sets.filter((s) => s.id !== setId) },
-      ),
-    );
+    editExercises((list) => list.map((e) => (e.id !== exId ? e : { ...e, sets: e.sets.filter((s) => s.id !== setId) })));
 
   // ─── Finish workout ────────────────────────────────────────────────
   const finish = async () => {
@@ -270,42 +264,57 @@ function LogPageInner() {
     }
   };
 
+  const resetDraft = () => {
+    clearDraft();
+    timer.cancel();
+    setDraft({ name: "Evening Lift", exercises: [blankExercise()], startedAt: Date.now() });
+  };
+
   return (
-    <div className="mx-auto max-w-[640px] space-y-6 pb-28">
-      {/* Header */}
-      <Card className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <label className="min-w-0 flex-1">
-            <span className="label block">Session</span>
-            <input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              maxLength={80}
-              className="mt-0.5 w-full border-b-2 border-transparent bg-transparent text-2xl font-extrabold tracking-tight placeholder:text-ink-3 focus:border-lime focus:outline-none"
-              placeholder="e.g. Leg Day"
-            />
-          </label>
-          <button
-            onClick={() => setAiOpen(true)}
-            aria-label="Generate workout with AI"
-            className="pop-btn violet h-11 min-h-0 w-11 shrink-0 px-0"
-            style={{ ["--d" as string]: "3px" }}
-          >
-            <Sparkles className="h-5 w-5" />
-          </button>
-        </div>
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
-          <Calendar className="h-3.5 w-3.5" />
-          {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-        </p>
-      </Card>
+    <div className="mx-auto max-w-[640px] space-y-5 pb-28">
+      <header className="flex items-end gap-3">
+        <label className="min-w-0 flex-1">
+          <span className="label block">
+            Session · {new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+          </span>
+          <input
+            value={draft.name}
+            onChange={(e) => {
+              const name = e.target.value;
+              setDraft((d) => ({ ...d, name }));
+            }}
+            maxLength={80}
+            aria-label="Session name"
+            className="mt-0.5 w-full border-b-2 border-transparent bg-transparent text-2xl font-extrabold tracking-tight placeholder:text-ink-3 focus:border-lime focus:outline-none lg:text-3xl"
+            placeholder="e.g. Leg Day"
+          />
+        </label>
+        <button
+          onClick={() => setAiOpen(true)}
+          aria-label="Generate workout with AI"
+          className="pop-btn violet mb-1 h-11 min-h-0 w-11 shrink-0 px-0"
+          style={{ ["--d" as string]: "3px" }}
+        >
+          <Sparkles className="h-5 w-5" />
+        </button>
+      </header>
+
+      <SessionBar
+        startedAt={draft.startedAt}
+        setsDone={setsDone}
+        setsTotal={setsTotal}
+        volumeKg={volumeDone}
+        units={units}
+        saving={saving}
+        onFinish={finish}
+      />
 
       {/* Exercise list */}
-      <div className="space-y-5">
+      <div className="space-y-4">
         {groups.map((group, gi) => {
           const isSuper = group.length > 1;
           return (
-            <div key={gi} className={isSuper ? "space-y-3 border-l-[6px] border-l-[#ffb800] pl-3" : ""}>
+            <div key={group[0]!.id} className={isSuper ? "space-y-3 border-l-[6px] border-l-[#ffb800] pl-3" : ""}>
               {isSuper && (
                 <span
                   className="plunk face-yellow inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.1em]"
@@ -314,206 +323,51 @@ function LogPageInner() {
                   <LinkIcon className="h-3 w-3" /> Superset
                 </span>
               )}
-              <div className="space-y-5">
-                {group.map((exercise, ix) => {
-                  const last = lastSessionFor(workouts, exercise.name);
-                  // Plate calc target: next incomplete set, else the LAST set (so completing
-                  // your final set doesn't snap the plates back to set 1).
-                  const topSet =
-                    exercise.sets.find((s) => !s.completed) ??
-                    exercise.sets[exercise.sets.length - 1];
-                  return (
-                    <Card key={exercise.id}>
-                      <div className="p-4 pb-3">
-                        <ExerciseAutocomplete
-                          value={exercise.name}
-                          customExercises={customExercises}
-                          onChange={(name) => {
-                            const patch: Partial<Exercise> = { name };
-                            if (!exercise.notes?.trim() && name.trim()) {
-                              const pastNote = findPastNote(workouts, name);
-                              if (pastNote) patch.notes = pastNote;
-                            }
-                            updateExercise(exercise.id, patch);
-                          }}
-                          onPick={(s) => {
-                            // When picking a custom exercise, auto-fill its saved muscle tags.
-                            if (s.muscles && s.muscles.length > 0 && !findExercise(s.name)) {
-                              updateExercise(exercise.id, { muscles: s.muscles });
-                            }
-                          }}
-                        />
-
-                        {/* Muscle picker — only when the name isn't recognised by the library */}
-                        {exercise.name.trim() && !findExercise(exercise.name) && (
-                          <div className="mt-3">
-                            <p className="label">Custom exercise — tag muscles</p>
-                            <div className="mt-1.5 flex flex-wrap gap-1.5">
-                              {(["chest","back","shoulders","biceps","triceps","forearms","core","quads","hamstrings","glutes","calves","cardio"] as MuscleGroup[]).map((m) => {
-                                const selected = (exercise.muscles ?? []).includes(m);
-                                return (
-                                  <button
-                                    key={m}
-                                    type="button"
-                                    aria-pressed={selected}
-                                    onClick={() => {
-                                      const cur = exercise.muscles ?? [];
-                                      const next = selected ? cur.filter((x) => x !== m) : [...cur, m];
-                                      updateExercise(exercise.id, { muscles: next });
-                                    }}
-                                    className="chip min-h-8 px-2 text-[11px]"
-                                  >
-                                    {MUSCLE_LABELS[m]}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Last-session hint (progressive overload) */}
-                        {last && exercise.name && (
-                          <p className="num mt-2 flex flex-wrap items-center gap-1 text-[11px] text-ink-2">
-                            <TrendingUp className="h-3 w-3" />
-                            Last time: <strong className="text-ink">{formatSet(last, units)}</strong>
-                            <span className="font-semibold text-ok">· try {nextTarget(last, units)}</span>
-                          </p>
-                        )}
-
-                        <label className="mt-3 flex items-center gap-2 border border-line-soft bg-field px-3 focus-within:border-ink focus-within:shadow-[3px_3px_0_rgb(var(--lime))]">
-                          <MessageSquareQuote className="h-4 w-4 shrink-0 text-ink-3" />
-                          <span className="sr-only">Notes</span>
-                          <input
-                            placeholder="Notes (form cues, tempo)"
-                            value={exercise.notes ?? ""}
-                            onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
-                            maxLength={500}
-                            className="h-10 w-full bg-transparent text-base placeholder:text-ink-3 focus:outline-none"
-                          />
-                        </label>
-
-                        <details className="group mt-3">
-                          <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
-                            <Settings2 className="h-3.5 w-3.5" />
-                            <span>Machine settings</span>
-                            <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                          </summary>
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <label className="field compact min-w-0">
-                              <span>Seat / pad</span>
-                              <input
-                                value={exercise.settings?.seat ?? ""}
-                                onChange={(e) =>
-                                  updateExercise(exercise.id, {
-                                    settings: { ...exercise.settings, seat: e.target.value },
-                                  })
-                                }
-                                placeholder="e.g. 5"
-                                maxLength={20}
-                              />
-                            </label>
-                            <label className="field compact min-w-0">
-                              <span>Incline / angle</span>
-                              <input
-                                value={exercise.settings?.incline ?? ""}
-                                onChange={(e) =>
-                                  updateExercise(exercise.id, {
-                                    settings: { ...exercise.settings, incline: e.target.value },
-                                  })
-                                }
-                                placeholder="e.g. 30°"
-                                maxLength={20}
-                              />
-                            </label>
-                          </div>
-                        </details>
-
-                        {topSet && topSet.kg > 0 && (
-                          <div className="mt-3">
-                            <PlateCalculator targetKg={topSet.kg} barbellKg={barbellKg} />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-[28px_1fr_1fr_88px] gap-2 border-y border-line-soft bg-elevated/60 px-4 py-2 text-center">
-                        <div className="label">#</div>
-                        <div className="label">{units}</div>
-                        <div className="label">Reps</div>
-                        <div />
-                      </div>
-
-                      <div className="space-y-2 px-4 py-3">
-                        {exercise.sets.map((set, idx) => (
-                          <SetRow
-                            key={set.id}
-                            index={idx}
-                            set={set}
-                            suggestion={last ?? undefined}
-                            canDelete={exercise.sets.length > 1}
-                            onChange={(patch) => updateSet(exercise.id, set.id, patch)}
-                            onDelete={() => removeSet(exercise.id, set.id)}
-                            onComplete={() => {
-                              if (timerEnabled) timer.start(exercise.restSec ?? 90);
-                            }}
-                          />
-                        ))}
-                      </div>
-
-                      <button
-                        onClick={() => addSet(exercise.id)}
-                        className="flex h-11 w-full items-center justify-center gap-2 border-t border-dashed border-line-soft text-xs font-bold uppercase tracking-[0.1em] text-ink-2 transition-colors hover:bg-elevated hover:text-ink"
-                      >
-                        <Plus className="h-4 w-4" /> Add set
-                      </button>
-
-                      <div className="flex divide-x divide-line-soft border-t border-line-soft text-[11px] font-bold tracking-[0.08em]">
-                        {ix === 0 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => moveGroup(gi, -1)}
-                              disabled={gi === 0}
-                              aria-label="Move up"
-                              className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                              <ChevronUp className="h-4 w-4" /> Up
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveGroup(gi, 1)}
-                              disabled={gi === groups.length - 1}
-                              aria-label="Move down"
-                              className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
-                            >
-                              <ChevronDown className="h-4 w-4" /> Down
-                            </button>
-                          </>
-                        )}
-                        {!isSuper && ix === 0 && (
-                          <button
-                            type="button"
-                            onClick={() => addSuperset(exercise.id, exercise.supersetId ?? null)}
-                            className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-warn transition-colors hover:bg-elevated"
-                          >
-                            <LinkIcon className="h-4 w-4" /> Superset
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => removeExercise(exercise.id)}
-                          className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-over transition-colors hover:bg-elevated"
-                        >
-                          <Trash2 className="h-4 w-4" /> Remove
-                        </button>
-                      </div>
-                    </Card>
-                  );
-                })}
+              <div className="space-y-4">
+                {group.map((exercise, ix) => (
+                  <ExerciseCard
+                    key={exercise.id}
+                    exercise={exercise}
+                    units={units}
+                    barbellKg={barbellKg}
+                    customExercises={customExercises}
+                    last={lastSessionFor(workouts, exercise.name)}
+                    prevBest={bestSetFor(workouts, exercise.name)}
+                    leadsGroup={ix === 0}
+                    inSuperset={isSuper}
+                    canMoveUp={gi > 0}
+                    canMoveDown={gi < groups.length - 1}
+                    onNameChange={(name) => {
+                      const patch: Partial<Exercise> = { name };
+                      if (!exercise.notes?.trim() && name.trim()) {
+                        const pastNote = findPastNote(workouts, name);
+                        if (pastNote) patch.notes = pastNote;
+                      }
+                      updateExercise(exercise.id, patch);
+                    }}
+                    onPick={(s) => {
+                      // When picking a custom exercise, auto-fill its saved muscle tags.
+                      if (s.muscles && s.muscles.length > 0 && !findExercise(s.name)) {
+                        updateExercise(exercise.id, { muscles: s.muscles });
+                      }
+                    }}
+                    onUpdate={(patch) => updateExercise(exercise.id, patch)}
+                    onAddSet={() => addSet(exercise.id)}
+                    onUpdateSet={(setId, patch) => updateSet(exercise.id, setId, patch)}
+                    onRemoveSet={(setId) => removeSet(exercise.id, setId)}
+                    onSetComplete={() => {
+                      if (timerEnabled) timer.start(exercise.restSec ?? 90);
+                    }}
+                    onMove={(direction) => moveGroup(gi, direction)}
+                    onSuperset={() => addSuperset(exercise.id, exercise.supersetId ?? null)}
+                    onRemove={() => removeExercise(exercise.id)}
+                  />
+                ))}
                 {isSuper && (
                   <button
                     onClick={() => {
-                      const last = group[group.length - 1]!;
-                      addSuperset(last.id, last.supersetId);
+                      const tail = group[group.length - 1]!;
+                      addSuperset(tail.id, tail.supersetId);
                     }}
                     className="flex h-11 w-full items-center justify-center gap-2 border border-dashed border-warn/70 text-xs font-bold uppercase tracking-[0.1em] text-warn transition-colors hover:bg-warn/10"
                   >
@@ -526,23 +380,16 @@ function LogPageInner() {
         })}
       </div>
 
-      <div className="flex flex-col gap-3 pt-2">
+      <div className="flex flex-col gap-3 pt-1">
         <Button onClick={addExercise} variant="secondary" size="lg" block>
           <Plus className="h-5 w-5" /> Add exercise
-        </Button>
-        <Button onClick={finish} loading={saving} variant="lime" size="lg" block>
-          <Save className="h-5 w-5" /> Finish workout
         </Button>
         <Confirm
           title="Discard draft?"
           message="This clears all unsaved sets for this session."
           confirmLabel="Discard"
           destructive
-          onConfirm={() => {
-            clearDraft();
-            timer.cancel();
-            setDraft({ name: "Evening Lift", exercises: [blankExercise()], startedAt: Date.now() });
-          }}
+          onConfirm={resetDraft}
           trigger={(open) => (
             <button
               onClick={open}
@@ -554,12 +401,11 @@ function LogPageInner() {
         />
       </div>
 
-
       <AIGenerateModal
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         recent={workouts}
-        onApply={({ name, exercises }) => setDraft({ ...draft, name, exercises, startedAt: Date.now() })}
+        onApply={({ name, exercises }) => setDraft((d) => ({ ...d, name, exercises, startedAt: Date.now() }))}
       />
 
       {/* Timer UI is page-scoped (only visible here). State lives globally in
@@ -598,20 +444,4 @@ function findPastNote(workouts: { date: Date; exercises: Exercise[] }[], name: s
     }
   }
   return undefined;
-}
-
-/** "82.5 kg × 5", or "12 reps" for bodyweight sets. */
-function formatSet(set: { kg: number; reps: number }, units: Units): string {
-  return set.kg > 0 ? `${displayWeight(set.kg, units, 1)} ${units} × ${set.reps}` : `${set.reps} reps`;
-}
-
-/**
- * Progressive-overload nudge: about 2.5% heavier, rounded to a loadable jump
- * (2.5 kg / 5 lb). When that rounds back to the same weight, add a rep instead.
- */
-function nextTarget(last: { kg: number; reps: number }, units: Units): string {
-  if (last.kg <= 0) return `${last.reps + 1} reps`;
-  const next = roundToPlate(last.kg * 1.025, units);
-  if (displayWeight(next, units, 1) > displayWeight(last.kg, units, 1)) return `${displayWeight(next, units, 1)} ${units}`;
-  return formatSet({ kg: last.kg, reps: last.reps + 1 }, units);
 }

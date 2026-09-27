@@ -9,17 +9,27 @@ import { fromKg, toKg } from "@/lib/units/converter";
 import { estimate1RM } from "@/lib/analytics/onerm";
 import { workoutSetCount, workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
+import { useSeen } from "@/hooks/useSeen";
 import { addBodyMetric, subscribeToBodyMetrics } from "@/lib/firebase/repository";
 import type { BodyMetric } from "@/types/workout";
-import { Skeleton } from "@/components/ui/Skeleton";
+import Link from "next/link";
+import { computePRs } from "@/lib/analytics/personal-records";
 import { Button } from "@/components/ui/Button";
-import { Calendar, Scale, Plus } from "lucide-react";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { CountUp } from "@/components/ui/CountUp";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { StatsSkeleton } from "@/components/ui/PageSkeletons";
+import { MuscleBalance } from "@/components/dashboard/MuscleBalance";
+import { VolumeChart } from "@/components/dashboard/VolumeChart";
+import { PRCards } from "@/components/dashboard/PRCards";
+import { BarChart3, Calendar, Scale, Plus } from "lucide-react";
 
 /**
  * Flat NeoPop line chart: an ink line with square markers. Markers are HTML so
  * they stay square while the SVG stretches to the container.
  */
 function TrendChart({ data, spread = 0.9 }: { data: { date: Date; v: number }[]; spread?: number }) {
+  const [ref, seen] = useSeen<HTMLDivElement>();
   const max = Math.max(...data.map((d) => d.v));
   const min = Math.min(...data.map((d) => d.v));
   const range = max - min || 1;
@@ -28,7 +38,7 @@ function TrendChart({ data, spread = 0.9 }: { data: { date: Date; v: number }[];
   const y = (v: number) => 100 - pad - ((v - min) / range) * spread * 100;
   const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
   return (
-    <div className="relative h-32">
+    <div ref={ref} data-seen={seen} className="wipe-in relative h-32">
       <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full overflow-visible" preserveAspectRatio="none" aria-hidden>
         {[25, 50, 75].map((p) => (
           <line key={p} x1="0" x2="100" y1={p} y2={p} style={{ stroke: "rgb(var(--line-soft))" }} strokeWidth="1" vectorEffect="non-scaling-stroke" />
@@ -130,13 +140,43 @@ export default function StatsPage() {
     return { sessions, sets, volume };
   }, [workouts, bodyweightKg]);
 
-  if (loading) {
+  const prs = useMemo(() => computePRs(workouts), [workouts]);
+
+  // Last 10 sessions for the volume chart, oldest first.
+  const volumeData = useMemo(
+    () =>
+      [...workouts]
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
+        .slice(-10)
+        .map((w) => ({
+          kg: workoutVolume(w, bodyweightKg),
+          label: w.date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+          date: w.date,
+          name: w.name,
+        })),
+    [workouts, bodyweightKg],
+  );
+
+  if (loading) return <StatsSkeleton />;
+
+  if (workouts.length === 0) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-12 w-48" />
-        <Skeleton className="h-40" />
-        <Skeleton className="h-60" />
-        <Skeleton className="h-60" />
+      <div className="stagger mx-auto max-w-[640px] space-y-6">
+        <header>
+          <p className="label">Stats</p>
+          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">How you&apos;re stacking up</h1>
+        </header>
+        <EmptyState
+          icon={<BarChart3 className="h-6 w-6" />}
+          title="No stats yet"
+          description="Log a workout and your muscle balance, volume, records and calendar show up here."
+          action={
+            <Link href="/log" className="pop-btn lime">
+              Start a workout
+            </Link>
+          }
+        />
+        <BodyweightSection />
       </div>
     );
   }
@@ -156,19 +196,23 @@ export default function StatsPage() {
       <section className="grid grid-cols-[1.1fr_1fr] gap-3 lg:grid-cols-3 lg:gap-4" style={{ ["--i" as string]: 1 }}>
         <div className="plunk face-lime p-4" style={{ ["--d" as string]: "5px" }}>
           <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Sessions</p>
-          <p className="hero-num num mt-2 text-[64px]">{totals.sessions}</p>
+          <p className="hero-num num mt-2 text-[64px]">
+            <CountUp value={totals.sessions} />
+          </p>
           <p className="mt-1 text-xs font-semibold opacity-80">logged, all time</p>
         </div>
         {/* Stacked beside the lime tile on phones; its own columns on desktop. */}
         <div className="grid grid-rows-2 gap-2 lg:contents">
           <div className="card p-3 lg:p-4">
             <p className="label">Sets</p>
-            <p className="num mt-1 text-2xl font-extrabold lg:text-4xl">{totals.sets.toLocaleString()}</p>
+            <p className="num mt-1 text-2xl font-extrabold lg:text-4xl">
+              <CountUp value={totals.sets} />
+            </p>
           </div>
           <div className="card p-3 lg:p-4">
             <p className="label">Volume · {units}</p>
             <p className="num mt-1 text-2xl font-extrabold lg:text-4xl">
-              {Math.round(fromKg(totals.volume, units) / 1000).toLocaleString()}k
+              <CountUp value={Math.round(fromKg(totals.volume, units) / 1000)} format={(n) => `${Math.round(n).toLocaleString()}k`} />
             </p>
           </div>
         </div>
@@ -179,6 +223,10 @@ export default function StatsPage() {
         style={{ ["--i" as string]: 2 }}
       >
         <div className="space-y-6">
+          {/* This week */}
+          <MuscleBalance workouts={workouts} />
+          <VolumeChart data={volumeData} />
+
           {/* Per-exercise 1RM progression */}
           <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
             <div className="flex items-start justify-between gap-3">
@@ -219,6 +267,8 @@ export default function StatsPage() {
         </div>
 
         <div className="space-y-6">
+          <PRCards records={prs} />
+
           {/* Frequency calendar */}
           <MonthCalendar workouts={workouts} />
 
@@ -235,12 +285,16 @@ function BodyweightSection() {
   const { units } = useUnits();
   const toast = useToast();
   const [metrics, setMetrics] = useState<BodyMetric[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    return subscribeToBodyMetrics(user.uid, setMetrics);
+    return subscribeToBodyMetrics(user.uid, (m) => {
+      setMetrics(m);
+      setLoaded(true);
+    });
   }, [user]);
 
   const log = async () => {
@@ -312,12 +366,14 @@ function BodyweightSection() {
           <span>Today&apos;s weight ({units})</span>
           <input type="text" inputMode="decimal" value={input} onChange={(e) => setInput(e.target.value)} className="num font-bold" />
         </label>
-        <Button type="submit" loading={saving} variant="lime" size="sm" className="h-11 shrink-0">
+        <Button type="submit" loading={saving} size="sm" className="h-11 shrink-0">
           <Plus className="h-4 w-4" /> Log
         </Button>
       </form>
 
-      {series.length >= 2 ? (
+      {!loaded ? (
+        <Skeleton className="h-[164px]" />
+      ) : series.length >= 2 ? (
         <BodyweightChart data={series} />
       ) : series.length === 1 ? (
         <p className="py-4 text-center text-xs text-ink-3">One more entry and the trend appears.</p>
@@ -359,9 +415,10 @@ function RepRangeSection({
     { key: "endurance", label: "Endurance", hint: "13+ reps", color: "rgb(var(--ok))", count: ranges.endurance },
   ];
   const top = rows.reduce((a, b) => (b.count > a.count ? b : a), rows[0]!);
+  const [ref, seen] = useSeen<HTMLElement>();
 
   return (
-    <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
+    <section ref={ref} data-seen={seen} className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="label">Training emphasis</p>
@@ -380,7 +437,7 @@ function RepRangeSection({
       ) : (
         <>
           <ul className="mt-4 space-y-3">
-            {rows.map((r) => {
+            {rows.map((r, i) => {
               const pct = Math.round((r.count / ranges.total) * 100);
               return (
                 <li key={r.key}>
@@ -395,7 +452,10 @@ function RepRangeSection({
                     </span>
                   </div>
                   <div className="mt-1 h-2 bg-elevated">
-                    <div className="bar-anim h-full" style={{ width: `${pct}%`, backgroundColor: r.color }} />
+                    <div
+                      className="bar-anim grow-x h-full"
+                      style={{ width: `${pct}%`, backgroundColor: r.color, ["--delay" as string]: `${i * 80}ms` }}
+                    />
                   </div>
                 </li>
               );

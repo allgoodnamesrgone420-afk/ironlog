@@ -8,6 +8,8 @@ interface TimerState {
   status: Status;
   secondsLeft: number;
   totalDuration: number;
+  /** When the countdown reaches zero (ms epoch) while running, otherwise null. */
+  endsAt: number | null;
   start: (seconds: number) => void;
   pause: () => void;
   resume: () => void;
@@ -30,6 +32,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>("idle");
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
   const intervalRef = useRef<number | null>(null);
   const endAtRef = useRef<number>(0);
 
@@ -55,6 +58,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     if (left <= 0) {
       clear();
       setStatus("done");
+      setEndsAt(null);
       persist(null);
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([200, 80, 200]);
     }
@@ -65,6 +69,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       clear();
       setTotalDuration(seconds);
       endAtRef.current = Date.now() + seconds * 1000;
+      setEndsAt(endAtRef.current);
       setSecondsLeft(seconds);
       setStatus("running");
       persist({ status: "running", totalDuration: seconds, endsAt: endAtRef.current });
@@ -81,6 +86,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     clear();
     const left = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
     setSecondsLeft(left);
+    setEndsAt(null);
     setStatus("paused");
     persist({ status: "paused", totalDuration, secondsLeft: left });
   }, [status, clear, totalDuration, persist]);
@@ -89,6 +95,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     if (status !== "paused") return;
     clear();
     endAtRef.current = Date.now() + secondsLeft * 1000;
+    setEndsAt(endAtRef.current);
     persist({ status: "running", totalDuration, endsAt: endAtRef.current });
     intervalRef.current = window.setInterval(tick, 250);
     setStatus("running");
@@ -98,6 +105,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     clear();
     setSecondsLeft(0);
     setTotalDuration(0);
+    setEndsAt(null);
     setStatus("idle");
     persist(null);
   }, [clear, persist]);
@@ -113,6 +121,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       setTotalDuration(total);
       if (status === "running") {
         endAtRef.current += delta * 1000;
+        setEndsAt(endAtRef.current);
         persist({ status: "running", totalDuration: total, endsAt: endAtRef.current });
         tick();
       } else if (status === "paused") {
@@ -134,6 +143,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         const left = Math.ceil((p.endsAt - Date.now()) / 1000);
         if (left > 0) {
           endAtRef.current = p.endsAt;
+          setEndsAt(p.endsAt);
           setTotalDuration(p.totalDuration);
           setSecondsLeft(left);
           setStatus("running");
@@ -156,7 +166,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ status, secondsLeft, totalDuration, start, pause, resume, cancel, addTime }}>
+    <Ctx.Provider value={{ status, secondsLeft, totalDuration, endsAt, start, pause, resume, cancel, addTime }}>
       {children}
     </Ctx.Provider>
   );

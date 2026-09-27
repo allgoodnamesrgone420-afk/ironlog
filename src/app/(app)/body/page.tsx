@@ -11,6 +11,7 @@ import type { BodyMetric } from "@/types/workout";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { MiniChart, type ChartPoint } from "@/components/dashboard/MiniChart";
 
 export default function BodyPage() {
@@ -18,11 +19,15 @@ export default function BodyPage() {
   const toast = useToast();
   const { units } = useUnits();
   const [metrics, setMetrics] = useState<BodyMetric[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");
 
   useEffect(() => {
     if (!user) return;
-    return subscribeToBodyMetrics(user.uid, setMetrics);
+    return subscribeToBodyMetrics(user.uid, (m) => {
+      setMetrics(m);
+      setLoaded(true);
+    });
   }, [user]);
 
   const log = async () => {
@@ -83,7 +88,18 @@ export default function BodyPage() {
         </form>
       </Card>
 
-      {metrics.length > 0 ? (
+      {!loaded ? (
+        // Same shape as the trend card below.
+        <div className="card space-y-3 p-4" aria-busy="true" aria-label="Loading">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-[140px]" />
+          <div className="grid grid-cols-3 gap-2">
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
+          </div>
+        </div>
+      ) : metrics.length > 0 ? (
         <Card className="p-4">
           <p className="label mb-3">Trend ({units})</p>
           <MiniChart data={chart} />

@@ -10,13 +10,15 @@ import { callGemini } from "@/lib/ai/gemini-client";
 import { COACH_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
 import { computePRs } from "@/lib/analytics/personal-records";
 import { Markdown } from "@/components/coach/Markdown";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { CoachMessage } from "@/types/ai";
 
 export default function CoachPage() {
   const { user } = useAuth();
-  const { workouts } = useWorkouts();
+  const { workouts, loading: workoutsLoading } = useWorkouts();
   const toast = useToast();
   const [messages, setMessages] = useState<CoachMessage[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -24,7 +26,10 @@ export default function CoachPage() {
   // Subscribe to persisted chat history
   useEffect(() => {
     if (!user) return;
-    return subscribeToCoachMessages(user.uid, setMessages);
+    return subscribeToCoachMessages(user.uid, (m) => {
+      setMessages(m);
+      setLoaded(true);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -85,6 +90,9 @@ ${history}`;
     return msg;
   }
 
+  // The intro quotes the workout count, so it waits for workouts too; history alone can show at once.
+  const chatReady = loaded && (messages.length > 0 || !workoutsLoading);
+
   const suggestions = [
     "What's my strongest lift?",
     "Suggest a leg session",
@@ -108,29 +116,46 @@ ${history}`;
           >
             <Bot className="h-3 w-3" /> AI coach
           </span>
-          <span className="num text-[11px] font-semibold text-ink-3">
-            {workouts.length} workout{workouts.length === 1 ? "" : "s"} in context
-          </span>
+          {workoutsLoading ? (
+            <Skeleton className="h-3 w-28" />
+          ) : (
+            <span className="num text-[11px] font-semibold text-ink-3">
+              {workouts.length} workout{workouts.length === 1 ? "" : "s"} in context
+            </span>
+          )}
         </div>
 
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
-          {messages.length === 0 && (
+          {!chatReady && (
+            // Chat history on its way: bubbles where the messages will be.
+            <div className="space-y-3" aria-busy="true" aria-label="Loading chat">
+              <div className="flex justify-end">
+                <Skeleton className="h-9 w-2/5" />
+              </div>
+              <Skeleton className="h-20 w-4/5" />
+              <div className="flex justify-end">
+                <Skeleton className="h-9 w-1/3" />
+              </div>
+            </div>
+          )}
+          {chatReady && messages.length === 0 && (
             <div className="space-y-1 py-2">
               <p className="font-bold">I have access to your {workouts.length} logged workouts.</p>
               <p className="text-sm text-ink-2">Ask about progress, programming, or technique.</p>
             </div>
           )}
-          {messages.map((m) =>
-            m.role === "user" ? (
-              <div key={m.id} className="flex justify-end">
-                <p className="max-w-[85%] whitespace-pre-wrap bg-lime px-3 py-2 text-sm font-medium text-on-accent">{m.text}</p>
-              </div>
-            ) : (
-              <div key={m.id} className="max-w-[92%] border-l-4 border-l-violet bg-elevated px-3 py-2 text-[15px] leading-relaxed">
-                <Markdown text={m.text} />
-              </div>
-            ),
-          )}
+          {chatReady &&
+            messages.map((m) =>
+              m.role === "user" ? (
+                <div key={m.id} className="flex justify-end">
+                  <p className="max-w-[85%] whitespace-pre-wrap bg-lime px-3 py-2 text-sm font-medium text-on-accent">{m.text}</p>
+                </div>
+              ) : (
+                <div key={m.id} className="max-w-[92%] border-l-4 border-l-violet bg-elevated px-3 py-2 text-[15px] leading-relaxed">
+                  <Markdown text={m.text} />
+                </div>
+              ),
+            )}
           {typing && (
             <div className="max-w-[60%] border-l-4 border-l-violet bg-elevated px-3 py-3" aria-label="Coach is typing">
               <div className="pulse h-2 w-24 bg-ink-3/40" />
@@ -139,7 +164,7 @@ ${history}`;
         </div>
 
         <div className="space-y-2 border-t border-line-soft p-3">
-          {messages.length < 2 && (
+          {loaded && messages.length < 2 && (
             <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="Suggestions">
               {suggestions.map((s) => (
                 <button key={s} onClick={() => send(s)} className="chip min-h-8 shrink-0 text-xs">

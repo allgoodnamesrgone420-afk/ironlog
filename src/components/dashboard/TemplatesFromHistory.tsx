@@ -9,9 +9,6 @@ import { workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { daysAgo } from "@/lib/utils";
 
-/** Accent per routine card, in frequency order. */
-const ACCENTS = ["rgb(var(--lime))", "rgb(var(--violet))", "rgb(var(--blue))"];
-
 /**
  * Templates surfaced from past workouts. We group by workout name (case-insensitive)
  * and surface the top 3 most-frequent — those are the routines you actually do.
@@ -54,18 +51,18 @@ export function TemplatesFromHistory({ workouts }: { workouts: Workout[] }) {
         <p className="label">Your routines</p>
         <p className="text-[11px] font-semibold text-ink-3">Tap to repeat</p>
       </div>
-      {templates.map((t, i) => (
+      {templates.map((t) => (
         <Link
           key={t.latest.id}
           href={`/log?repeat=${t.latest.id}`}
-          className="card flex items-center gap-3 border-l-[6px] p-3 transition-colors hover:bg-elevated"
-          style={{ borderLeftColor: ACCENTS[i % ACCENTS.length] }}
+          className="card flex items-center gap-3 p-3 transition-colors hover:bg-elevated"
         >
+          <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center bg-elevated leading-none" aria-hidden="true">
+            <span className="num text-lg font-extrabold">{t.count}</span>
+            <span className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.08em] text-ink-3">times</span>
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2">
-              <span className="truncate font-bold">{t.latest.name}</span>
-              <span className="tag num shrink-0 text-ink-2">{t.count}×</span>
-            </span>
+            <span className="block truncate font-bold">{t.latest.name}</span>
             <span className="num mt-0.5 block truncate text-xs text-ink-2">
               {daysAgo(t.latest.date)} · {t.latest.exercises.length} ex · {formatWeight(workoutVolume(t.latest, bodyweightKg), units, 0)}
             </span>
@@ -73,7 +70,11 @@ export function TemplatesFromHistory({ workouts }: { workouts: Workout[] }) {
               {t.latest.exercises.map((ex) => ex.name).join(", ")}
             </span>
           </span>
-          <span className="pop-btn sm lime shrink-0" aria-hidden="true">
+          {/* Quiet on purpose: the one lime action on Home is "Start today's workout". */}
+          <span
+            className="flex h-9 shrink-0 items-center border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em]"
+            aria-hidden="true"
+          >
             Repeat
           </span>
         </Link>

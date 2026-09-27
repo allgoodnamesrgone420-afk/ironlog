@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Zap } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Sparkles, Zap } from "lucide-react";
 import type { Workout } from "@/types/workout";
 import { callGemini } from "@/lib/ai/gemini-client";
 import { INSIGHT_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
@@ -54,11 +55,21 @@ export function CoachInsight({ workouts }: { workouts: Workout[] }) {
       ) : (
         <p className="mt-2 text-xl font-extrabold leading-tight">Get personalized advice based on your recent training.</p>
       )}
-      {!tip && !loading && (
-        <Button className="mt-4" onClick={fetchTip}>
-          <Zap className="h-4 w-4" /> Get insight
-        </Button>
-      )}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        {!tip && !loading ? (
+          <Button onClick={fetchTip}>
+            <Zap className="h-4 w-4" /> Get insight
+          </Button>
+        ) : (
+          <span />
+        )}
+        <Link
+          href="/coach"
+          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] underline decoration-2 underline-offset-4"
+        >
+          Open chat <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </section>
   );
 }

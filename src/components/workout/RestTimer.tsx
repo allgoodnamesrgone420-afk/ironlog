@@ -1,7 +1,9 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
 import { Pause, Play, X, Minus, Plus, RotateCcw } from "lucide-react";
 import { useTimer } from "@/providers/TimerProvider";
+import { prefersReducedMotion } from "@/lib/motion";
 
 function fmt(sec: number) {
   const m = Math.floor(sec / 60);
@@ -17,26 +19,50 @@ const btn = "flex h-9 w-9 items-center justify-center border border-line text-in
  * Rendered by the Log page; sits just above the phone dock.
  */
 export function RestTimer() {
-  const { status, secondsLeft, totalDuration, pause, resume, cancel, addTime, start } = useTimer();
+  const { status, secondsLeft, totalDuration, endsAt, pause, resume, cancel, addTime, start } = useTimer();
+  const barRef = useRef<HTMLDivElement>(null);
+  const [reduced] = useState(prefersReducedMotion);
+  // While running, the bar follows the clock every frame instead of stepping once a second.
+  const smooth = status === "running" && endsAt !== null && totalDuration > 0 && !reduced;
+
+  useLayoutEffect(() => {
+    const el = barRef.current;
+    if (!smooth || !el || endsAt === null) return;
+    let raf = 0;
+    const frame = () => {
+      const left = (endsAt - Date.now()) / (totalDuration * 1000);
+      el.style.transform = `scaleX(${Math.min(1, Math.max(0, left))})`;
+      raf = requestAnimationFrame(frame);
+    };
+    frame();
+    return () => cancelAnimationFrame(raf);
+  }, [smooth, endsAt, totalDuration]);
 
   if (status === "idle") return null;
 
-  const pct = totalDuration > 0 ? secondsLeft / totalDuration : 0;
   const isDone = status === "done";
   const isPaused = status === "paused";
   const isRunning = status === "running";
+  const pct = isDone ? 1 : totalDuration > 0 ? secondsLeft / totalDuration : 0;
+  // The last three seconds beat once a second (keyed so each second restarts it).
+  const finalCount = isRunning && secondsLeft > 0 && secondsLeft <= 3;
   const color = isDone ? "rgb(var(--ok))" : isPaused ? "rgb(var(--warn))" : "rgb(var(--lime))";
 
   return (
     <div
       role="timer"
+      aria-label="Rest timer"
       aria-live="polite"
       className="fixed inset-x-0 z-40 px-5 lg:left-60"
       style={{ bottom: "calc(var(--dock-h) + 12px)" }}
     >
       <div className="mx-auto max-w-[390px] border border-line bg-elevated shadow-[4px_4px_0_#000]">
         <div className="flex items-center gap-2.5 px-3 py-2.5">
-          <p className="num shrink-0 text-[28px] font-extrabold leading-none tracking-tight">{fmt(secondsLeft)}</p>
+          <p className="num shrink-0 text-[28px] font-extrabold leading-none tracking-tight">
+            <span key={finalCount ? secondsLeft : "clock"} className={finalCount ? "tick-pulse" : "inline-block"}>
+              {fmt(secondsLeft)}
+            </span>
+          </p>
           <div className="min-w-0 flex-1">
             <p className="label flex items-center gap-1.5">
               <span className="h-2 w-2 shrink-0" style={{ backgroundColor: color }} aria-hidden />
@@ -62,7 +88,8 @@ export function RestTimer() {
                 <RotateCcw className="h-4 w-4" />
               </button>
             ) : isRunning ? (
-              <button aria-label="Pause" onClick={pause} className="flex h-9 w-9 items-center justify-center bg-lime text-on-accent">
+              // Neutral like −/+: on the log screen the lime action is Finish.
+              <button aria-label="Pause" onClick={pause} className={btn}>
                 <Pause className="h-4 w-4" />
               </button>
             ) : (
@@ -80,7 +107,12 @@ export function RestTimer() {
           </div>
         </div>
         <div className="h-1 bg-line-soft">
-          <div className="h-full transition-[width] duration-300" style={{ width: `${pct * 100}%`, backgroundColor: color }} />
+          <div
+            ref={barRef}
+            className={`h-full origin-left ${isDone ? "pulse" : ""}`}
+            // When smooth, the frame loop owns the transform; React only sets the colour.
+            style={smooth ? { backgroundColor: color } : { transform: `scaleX(${pct})`, backgroundColor: color }}
+          />
         </div>
       </div>
     </div>

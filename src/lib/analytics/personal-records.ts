@@ -14,7 +14,7 @@ export interface PRRow {
 type Entry = { kg: number; reps: number; date: Date };
 
 /** Heavier wins; at the same weight, more reps wins. */
-function beats(a: { kg: number; reps: number }, b: { kg: number; reps: number } | null | undefined): boolean {
+export function beats(a: { kg: number; reps: number }, b: { kg: number; reps: number } | null | undefined): boolean {
   return !b || a.kg > b.kg || (a.kg === b.kg && a.reps > b.reps);
 }
 
@@ -119,4 +119,19 @@ export function countPRsSince(workouts: Workout[], since: Date): number {
     if (previous && beats(best, previous)) count++;
   }
   return count;
+}
+
+/** Best set ever logged for an exercise (name matched case-insensitively), or null. */
+export function bestSetFor(workouts: Workout[], exerciseName: string): { kg: number; reps: number } | null {
+  const target = exerciseName.trim().toLowerCase();
+  if (!target) return null;
+  let best: Entry | null = null;
+  for (const w of workouts) {
+    for (const ex of w.exercises ?? []) {
+      if (ex.name?.trim().toLowerCase() !== target) continue;
+      const b = bestSet(ex.sets, w.date);
+      if (b && beats(b, best)) best = b;
+    }
+  }
+  return best ? { kg: best.kg, reps: best.reps } : null;
 }

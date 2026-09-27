@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Check, ChevronDown, Plus, Trash2, Dumbbell, Play, Star, Pencil, X,
+  CalendarRange, Check, ChevronDown, Plus, Trash2, Dumbbell, Play, Star, Pencil, X,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useUnits } from "@/providers/UnitsProvider";
@@ -20,6 +20,8 @@ import type { Program } from "@/types/program";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ProgramsSkeleton } from "@/components/ui/PageSkeletons";
 
 export default function ProgramsPage() {
   const { user } = useAuth();
@@ -106,11 +108,13 @@ export default function ProgramsPage() {
 
       {/* Installed programs */}
       {loading ? (
-        <Card variant="flat" className="p-5 text-sm text-ink-2">Loading…</Card>
+        <ProgramsSkeleton />
       ) : programs.length === 0 ? (
-        <Card variant="flat" className="p-5 text-sm text-ink-2">
-          No programs yet. Install a template below or create a blank one.
-        </Card>
+        <EmptyState
+          icon={<CalendarRange className="h-6 w-6" />}
+          title="No program yet"
+          description="Add one of the templates below, or start a blank program and build your own."
+        />
       ) : (
         <div className="space-y-4" style={{ ["--i" as string]: 1 }}>
           {programs.map((p) => (
@@ -153,7 +157,7 @@ export default function ProgramsPage() {
             </div>
             <Button
               size="sm"
-              variant="lime"
+              variant="secondary"
               onClick={() => install(preset.key)}
               loading={installing === preset.key}
               className="shrink-0"

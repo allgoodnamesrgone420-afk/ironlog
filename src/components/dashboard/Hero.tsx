@@ -3,6 +3,7 @@
 import type { Workout } from "@/types/workout";
 import type { TrainingWeek } from "@/lib/analytics/streak";
 import { daysAgo } from "@/lib/utils";
+import { CountUp } from "@/components/ui/CountUp";
 
 interface Props {
   week: TrainingWeek;
@@ -23,7 +24,7 @@ export function Hero({ week, last }: Props) {
       </div>
 
       <p className="hero-num num mt-3 text-[88px]">
-        {trainedThisWeek}
+        <CountUp value={trainedThisWeek} />
         <span className="ml-1 text-[40px] opacity-50">/7</span>
       </p>
 
@@ -35,7 +36,8 @@ export function Hero({ week, last }: Props) {
         {days.map((d, i) => (
           <div key={i} className="flex flex-col items-center gap-1.5">
             <div
-              className={`h-2.5 w-full ${
+              style={{ ["--delay" as string]: `${120 + i * 60}ms` }}
+              className={`grow-x h-2.5 w-full ${
                 d.isTrained ? "bg-[#0d0d0d]" : d.isToday ? "bg-black/15 ring-1 ring-inset ring-black/60" : d.isFuture ? "bg-black/[0.07]" : "bg-black/15"
               }`}
             />

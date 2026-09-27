@@ -15,7 +15,7 @@ import { HISTORY_ANALYZER_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
 import { Confirm } from "@/components/ui/Confirm";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { HistorySkeleton } from "@/components/ui/PageSkeletons";
 import { formatWeight, fromKg } from "@/lib/units/converter";
 
 export default function HistoryPage() {
@@ -83,6 +83,8 @@ export default function HistoryPage() {
     }
   };
 
+  if (loading) return <HistorySkeleton />;
+
   return (
     <div className="stagger mx-auto max-w-[640px] space-y-5">
       <header style={{ ["--i" as string]: 0 }}>
@@ -140,13 +142,7 @@ export default function HistoryPage() {
         </section>
       )}
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24" />
-          ))}
-        </div>
-      ) : workouts.length === 0 ? (
+      {workouts.length === 0 ? (
         <EmptyState
           icon={<Dumbbell className="h-6 w-6" />}
           title="No workouts logged yet"

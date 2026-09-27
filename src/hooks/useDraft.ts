@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 /**
  * Persists a value to localStorage under a user-scoped key. Auto-loads on mount.
  */
-export function useDraft<T>(uid: string | undefined, key: string, initial: T): [T, (v: T) => void, () => void] {
+export function useDraft<T>(
+  uid: string | undefined,
+  key: string,
+  initial: T,
+): [T, Dispatch<SetStateAction<T>>, () => void] {
   const fullKey = uid ? `ironlog:${uid}:${key}` : null;
   const [value, setValue] = useState<T>(initial);
   const [hydrated, setHydrated] = useState(false);
