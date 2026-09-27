@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Circle, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import type { WorkoutSet } from "@/types/workout";
 import { useUnits } from "@/providers/UnitsProvider";
 import { fromKg, toKg } from "@/lib/units/converter";
@@ -82,20 +82,20 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
   // Display value for kg is in the user's chosen unit
   const displayKg = fromKg(set.kg, units);
 
+  // Completed rows dim their numbers; the lime check stays bright.
+  const done = set.completed ? "opacity-50" : "";
+  const input = `box-input num h-11 text-center font-bold disabled:opacity-50 ${done}`;
+
   return (
-    <div
-      className={`grid grid-cols-[28px_1fr_1fr_auto] gap-2 items-center transition-opacity ${
-        set.completed ? "opacity-60" : "opacity-100"
-      }`}
-    >
-      <div className="text-center font-medium text-zinc-400 dark:text-zinc-600 text-sm">{index + 1}</div>
+    <div className="grid grid-cols-[28px_1fr_1fr_88px] items-center gap-2">
+      <div className={`num text-center text-sm font-bold text-ink-3 ${done}`}>{index + 1}</div>
 
       <NumberField
         externalValue={displayKg}
         onValue={(v) => onChange({ kg: toKg(v, units) })}
         decimal
         placeholder={showSuggestion ? `${fromKg(suggestion!.kg, units).toFixed(1)}` : units}
-        className="w-full text-center bg-zinc-50 dark:bg-zinc-800 rounded-lg py-2.5 font-bold text-zinc-800 dark:text-zinc-100 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50 placeholder-zinc-300 dark:placeholder-zinc-600"
+        className={input}
       />
 
       <NumberField
@@ -103,10 +103,10 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
         onValue={(v) => onChange({ reps: Math.round(v) })}
         decimal={false}
         placeholder={showSuggestion ? `${suggestion!.reps}` : "reps"}
-        className="w-full text-center bg-zinc-50 dark:bg-zinc-800 rounded-lg py-2.5 font-bold text-zinc-800 dark:text-zinc-100 focus:ring-2 focus:ring-brand-500 outline-none disabled:opacity-50 placeholder-zinc-300 dark:placeholder-zinc-600"
+        className={input}
       />
 
-      <div className="flex items-center gap-1 justify-end">
+      <div className="flex items-center justify-end gap-1">
         <button
           type="button"
           onClick={() => {
@@ -116,22 +116,21 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
             if (!set.completed && set.reps > 0) onComplete();
           }}
           aria-label={set.completed ? "Mark set incomplete" : "Mark set complete"}
-          className={`p-2 min-w-[44px] min-h-[44px] rounded-full transition-colors flex items-center justify-center ${
-            set.completed
-              ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
-              : "bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+          aria-pressed={set.completed}
+          className={`flex h-11 w-11 items-center justify-center border transition-colors ${
+            set.completed ? "border-lime bg-lime text-on-accent" : "border-line text-ink-3 hover:text-ink"
           }`}
         >
-          {set.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+          <Check className="h-5 w-5" strokeWidth={set.completed ? 3.5 : 2} />
         </button>
         {canDelete && (
           <button
             type="button"
             onClick={onDelete}
             aria-label="Delete set"
-            className="p-2 min-w-[44px] min-h-[44px] rounded-full text-zinc-400 dark:text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
+            className="flex h-11 w-10 items-center justify-center text-ink-3 transition-colors hover:text-over"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="h-4 w-4" />
           </button>
         )}
       </div>

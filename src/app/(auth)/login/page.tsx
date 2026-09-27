@@ -4,9 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { Mail, Lock, AlertCircle } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
-import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { AuthShell, Field, FormError } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 
 export default function LoginPage() {
@@ -33,11 +32,10 @@ export default function LoginPage() {
 
   return (
     <AuthShell subtitle="Track your progress, hit your goals.">
-      <h2 className="font-bold text-zinc-900 dark:text-white mb-6">Sign in</h2>
-      <form onSubmit={submit} className="space-y-4">
+      <h2 className="label mb-3">Sign in</h2>
+      <form onSubmit={submit} className="space-y-3">
         <Field
           label="Email"
-          icon={<Mail className="w-5 h-5" />}
           type="email"
           value={email}
           onChange={setEmail}
@@ -47,7 +45,6 @@ export default function LoginPage() {
         />
         <Field
           label="Password"
-          icon={<Lock className="w-5 h-5" />}
           type="password"
           value={password}
           onChange={setPassword}
@@ -56,22 +53,20 @@ export default function LoginPage() {
           required
           minLength={6}
         />
-        {error && (
-          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-        <Button type="submit" loading={loading} size="lg" className="w-full">
+        {error && <FormError>{error}</FormError>}
+        <Button type="submit" loading={loading} variant="lime" size="lg" block className="!mt-5">
           Sign in
         </Button>
       </form>
-      <div className="mt-5 flex items-center justify-between text-sm">
-        <Link href="/forgot" className="text-brand-600 hover:underline">
+      <div className="mt-6 flex items-center justify-between gap-3 text-sm">
+        <Link href="/forgot" className="font-semibold text-ink-2 hover:text-ink">
           Forgot password?
         </Link>
-        <Link href="/signup" className="text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300">
-          Create account →
+        <Link
+          href="/signup"
+          className="font-bold uppercase tracking-[0.1em] underline decoration-lime decoration-2 underline-offset-4"
+        >
+          Create account
         </Link>
       </div>
     </AuthShell>

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { Mail } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
 import { AuthShell, Field } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
@@ -27,16 +26,15 @@ export default function ForgotPage() {
 
   return (
     <AuthShell subtitle="We'll send you a reset link.">
-      <h2 className="font-bold text-zinc-900 dark:text-white mb-6">Reset password</h2>
+      <h2 className="label mb-3">Reset password</h2>
       {sent ? (
-        <div className="text-sm text-zinc-700 dark:text-zinc-300">
+        <div className="card border-l-[6px] border-l-ok p-4 text-sm">
           If an account exists for <strong>{email}</strong>, a reset link is on its way. Check your inbox and spam folder.
         </div>
       ) : (
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="space-y-3">
           <Field
             label="Email"
-            icon={<Mail className="w-5 h-5" />}
             type="email"
             value={email}
             onChange={setEmail}
@@ -44,13 +42,13 @@ export default function ForgotPage() {
             autoComplete="email"
             required
           />
-          <Button type="submit" loading={loading} size="lg" className="w-full">
+          <Button type="submit" loading={loading} variant="lime" size="lg" block className="!mt-5">
             Send reset link
           </Button>
         </form>
       )}
-      <p className="text-xs text-zinc-500 mt-5 text-center">
-        <Link href="/login" className="text-brand-600 hover:underline">
+      <p className="mt-6 text-center text-sm">
+        <Link href="/login" className="font-semibold text-ink-2 hover:text-ink">
           ← Back to sign in
         </Link>
       </p>

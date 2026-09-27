@@ -32,23 +32,30 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.hasError) return this.props.children;
     if (this.props.fallback) return this.props.fallback;
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-500 mb-4">
-          <AlertTriangle className="w-7 h-7" />
-        </div>
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Something broke</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-sm">
+      <div className="flex min-h-screen flex-col items-center justify-center p-6 text-center">
+        <span
+          className="plunk face-over mb-6 flex h-14 w-14 items-center justify-center"
+          style={{ ["--d" as string]: "5px" }}
+          aria-hidden
+        >
+          <AlertTriangle className="h-7 w-7" />
+        </span>
+        <p className="label">Error</p>
+        <h1 className="mt-1 text-2xl font-extrabold tracking-tight">Something broke</h1>
+        <p className="mt-2 max-w-sm text-sm text-ink-2">
           The app hit an unexpected error. Your data is safe — try reloading.
         </p>
-        <details className="mt-4 text-xs text-zinc-400 max-w-md">
-          <summary className="cursor-pointer">Technical details</summary>
-          <pre className="mt-2 text-left whitespace-pre-wrap break-words">{this.state.error?.message}</pre>
+        <details className="mt-4 max-w-md text-xs text-ink-3">
+          <summary className="cursor-pointer font-bold uppercase tracking-[0.1em]">Technical details</summary>
+          <pre className="mt-2 whitespace-pre-wrap break-words text-left">{this.state.error?.message}</pre>
         </details>
-        <div className="flex gap-2 mt-6">
+        <div className="mt-6 flex gap-2">
           <Button variant="secondary" onClick={this.reset}>
             Try again
           </Button>
-          <Button onClick={() => window.location.reload()}>Reload</Button>
+          <Button variant="lime" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
         </div>
       </div>
     );

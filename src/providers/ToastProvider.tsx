@@ -52,8 +52,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={api}>
       {children}
       <div
-        className="fixed left-1/2 z-[100] -translate-x-1/2 flex flex-col items-center gap-2 px-4"
-        style={{ top: "calc(env(safe-area-inset-top) + 16px)" }}
+        className="fixed inset-x-0 z-[100] flex flex-col items-center gap-2 px-5"
+        style={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
         aria-live="polite"
         aria-atomic="true"
       >
@@ -61,28 +61,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role="status"
-            className={`flex items-start gap-2 max-w-sm w-full rounded-xl shadow-lg px-4 py-3 border text-sm font-medium animate-slide-up ${
-              t.variant === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-800 dark:text-emerald-200"
-                : t.variant === "error"
-                  ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-800 dark:text-red-200"
-                  : "bg-zinc-900 text-white border-zinc-800"
+            className={`backdrop flex w-full max-w-[390px] items-start gap-3 border border-line border-l-[6px] bg-elevated px-4 py-3 text-sm font-semibold shadow-[4px_4px_0_#000] ${
+              t.variant === "success" ? "border-l-ok" : t.variant === "error" ? "border-l-over" : "border-l-violet"
             }`}
           >
             {t.variant === "success" ? (
-              <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
             ) : t.variant === "error" ? (
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-over" />
             ) : (
-              <Info className="w-4 h-4 mt-0.5 shrink-0" />
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet" />
             )}
             <span className="flex-1">{t.message}</span>
             <button
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss"
-              className="opacity-70 hover:opacity-100 transition-opacity"
+              className="-m-1 p-1 text-ink-3 transition-colors hover:text-ink"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}

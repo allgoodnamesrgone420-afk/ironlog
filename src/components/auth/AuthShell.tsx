@@ -3,24 +3,25 @@ import { Activity } from "lucide-react";
 
 export function AuthShell({ children, subtitle }: { children: ReactNode; subtitle?: string }) {
   return (
-    <div className="w-full max-w-sm">
-      <div className="flex flex-col items-center mb-8">
-        <div className="bg-brand-600 p-4 rounded-2xl shadow-lg shadow-brand-100 dark:shadow-none mb-4">
-          <Activity className="text-white w-8 h-8" aria-hidden />
-        </div>
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">IronLog</h1>
-        {subtitle && <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-center">{subtitle}</p>}
+    <div className="w-full">
+      <div className="mb-8">
+        <span
+          className="plunk face-lime flex h-14 w-14 items-center justify-center"
+          style={{ ["--d" as string]: "5px" }}
+          aria-hidden
+        >
+          <Activity className="h-7 w-7" strokeWidth={2.75} />
+        </span>
+        <h1 className="mt-6 text-4xl font-extrabold tracking-tight">IronLog</h1>
+        {subtitle && <p className="mt-1 text-ink-2">{subtitle}</p>}
       </div>
-      <div className="bg-white dark:bg-zinc-900 p-7 rounded-3xl shadow-lg border border-zinc-100 dark:border-zinc-800">
-        {children}
-      </div>
+      {children}
     </div>
   );
 }
 
 interface FieldProps {
   label: string;
-  icon: ReactNode;
   type?: string;
   value: string;
   onChange: (v: string) => void;
@@ -30,25 +31,30 @@ interface FieldProps {
   minLength?: number;
 }
 
-export function Field({ label, icon, type = "text", value, onChange, placeholder, autoComplete, required, minLength }: FieldProps) {
+/** Boxed input with the label inside the box (see .field in globals.css). */
+export function Field({ label, type = "text", value, onChange, placeholder, autoComplete, required, minLength }: FieldProps) {
   return (
-    <div className="space-y-2">
-      <label className="text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider">{label}</label>
-      <div className="flex items-center gap-3 bg-zinc-50 dark:bg-zinc-800 px-4 py-3 rounded-xl border border-transparent focus-within:border-brand-500 transition-colors">
-        <span className="text-zinc-400" aria-hidden>
-          {icon}
-        </span>
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoComplete={autoComplete}
-          required={required}
-          minLength={minLength}
-          className="bg-transparent w-full outline-none text-zinc-800 dark:text-white text-base"
-        />
-      </div>
-    </div>
+    <label className="field">
+      <span>{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required={required}
+        minLength={minLength}
+      />
+    </label>
+  );
+}
+
+/** Inline error for auth forms. */
+export function FormError({ children }: { children: ReactNode }) {
+  return (
+    <p role="alert" className="flex items-start gap-2 border border-over/60 bg-over/10 p-3 text-sm">
+      <span className="mt-0.5 h-2.5 w-2.5 shrink-0 bg-over" aria-hidden />
+      {children}
+    </p>
   );
 }

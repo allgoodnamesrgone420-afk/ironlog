@@ -12,49 +12,58 @@ import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { addBodyMetric, subscribeToBodyMetrics } from "@/lib/firebase/repository";
 import type { BodyMetric } from "@/types/workout";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
-import { BarChart3, TrendingUp, Flame, Calendar, Scale, Plus } from "lucide-react";
+import { Calendar, Scale, Plus } from "lucide-react";
+
+/**
+ * Flat NeoPop line chart: an ink line with square markers. Markers are HTML so
+ * they stay square while the SVG stretches to the container.
+ */
+function TrendChart({ data, spread = 0.9 }: { data: { date: Date; v: number }[]; spread?: number }) {
+  const max = Math.max(...data.map((d) => d.v));
+  const min = Math.min(...data.map((d) => d.v));
+  const range = max - min || 1;
+  const pad = ((1 - spread) / 2) * 100;
+  const x = (i: number) => (i / (data.length - 1)) * 100;
+  const y = (v: number) => 100 - pad - ((v - min) / range) * spread * 100;
+  const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
+  return (
+    <div className="relative h-32">
+      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full overflow-visible" preserveAspectRatio="none" aria-hidden>
+        {[25, 50, 75].map((p) => (
+          <line key={p} x1="0" x2="100" y1={p} y2={p} style={{ stroke: "rgb(var(--line-soft))" }} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        ))}
+        <polyline
+          points={points}
+          fill="none"
+          style={{ stroke: "rgb(var(--ink))" }}
+          strokeWidth="2"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {data.map((d, i) => (
+        <span
+          key={i}
+          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 bg-violet ring-2 ring-surface"
+          style={{ left: `${x(i)}%`, top: `${y(d.v)}%` }}
+          aria-hidden
+        />
+      ))}
+    </div>
+  );
+}
 
 /** Per-exercise 1RM progression over time. */
-function ProgressionChart({ data, color = "#3b82f6" }: { data: { date: Date; v: number }[]; color?: string }) {
+function ProgressionChart({ data }: { data: { date: Date; v: number }[] }) {
   if (data.length < 2) {
     return (
-      <div className="h-32 flex items-center justify-center text-xs text-zinc-500 italic">
+      <div className="flex h-32 items-center justify-center border border-dashed border-line-soft text-xs text-ink-3">
         Need at least 2 sessions to draw a trend.
       </div>
     );
   }
-  const max = Math.max(...data.map((d) => d.v));
-  const min = Math.min(...data.map((d) => d.v));
-  const range = max - min || 1;
-  const x = (i: number) => (i / (data.length - 1)) * 100;
-  const y = (v: number) => 100 - ((v - min) / range) * 90 - 5;
-  const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
-  const area = `0,100 ${points} 100,100`;
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-32" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="prog-grad" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={area} fill="url(#prog-grad)" />
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-      />
-      {data.map((d, i) => (
-        <circle key={i} cx={x(i)} cy={y(d.v)} r="1" fill={color} vectorEffect="non-scaling-stroke" />
-      ))}
-    </svg>
-  );
+  return <TrendChart data={data} />;
 }
 
 export default function StatsPage() {
@@ -124,87 +133,99 @@ export default function StatsPage() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-24 rounded-3xl" />
-        <Skeleton className="h-60 rounded-3xl" />
-        <Skeleton className="h-60 rounded-3xl" />
+        <Skeleton className="h-12 w-48" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-60" />
+        <Skeleton className="h-60" />
       </div>
     );
   }
 
+  const first = progression[0]?.v ?? 0;
+  const latest = progression[progression.length - 1]?.v ?? 0;
+  const delta = latest - first;
+
   return (
-    <div className="space-y-5 animate-fade-in">
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Stats</h1>
+    <div className="stagger space-y-6">
+      <header style={{ ["--i" as string]: 0 }}>
+        <p className="label">Stats</p>
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">How you&apos;re stacking up</h1>
+      </header>
 
       {/* Lifetime totals */}
-      <div className="grid grid-cols-3 gap-2">
-        <TotalCard icon={<Flame className="w-4 h-4" />} label="Sessions" value={totals.sessions.toString()} color="text-amber-500 dark:text-amber-400" bg="bg-amber-500/10" />
-        <TotalCard icon={<TrendingUp className="w-4 h-4" />} label="Sets" value={totals.sets.toString()} color="text-brand-600 dark:text-brand-400" bg="bg-brand-500/10" />
-        <TotalCard
-          icon={<BarChart3 className="w-4 h-4" />}
-          label={`Volume (${units})`}
-          value={Math.round(fromKg(totals.volume, units) / 1000).toLocaleString() + "k"}
-          color="text-emerald-600 dark:text-emerald-400"
-          bg="bg-emerald-500/10"
-        />
-      </div>
-
-      {/* Per-exercise 1RM progression */}
-      <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h3 className="font-bold text-zinc-900 dark:text-white text-sm">Estimated 1RM</h3>
-            <p className="text-xs text-zinc-500">Top set per session, Epley + Brzycki</p>
-          </div>
-          {exercises.length > 0 && (
-            <select
-              value={selected ?? ""}
-              onChange={(e) => setPicked(e.target.value)}
-              className="bg-zinc-100 dark:bg-zinc-800 text-sm font-semibold text-zinc-700 dark:text-zinc-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 max-w-[150px]"
-            >
-              {exercises.map((ex) => (
-                <option key={ex} value={ex}>
-                  {ex}
-                </option>
-              ))}
-            </select>
-          )}
+      <section className="grid grid-cols-[1.1fr_1fr] gap-3 lg:grid-cols-3 lg:gap-4" style={{ ["--i" as string]: 1 }}>
+        <div className="plunk face-lime p-4" style={{ ["--d" as string]: "5px" }}>
+          <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Sessions</p>
+          <p className="hero-num num mt-2 text-[64px]">{totals.sessions}</p>
+          <p className="mt-1 text-xs font-semibold opacity-80">logged, all time</p>
         </div>
-        {progression.length > 0 && (
-          <div className="flex items-baseline gap-2 mb-2">
-            <span
-              className="text-3xl font-bold text-zinc-900 dark:text-white leading-none"
-              style={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {progression[progression.length - 1]!.v.toFixed(0)}
-            </span>
-            <span className="text-xs text-zinc-500 font-semibold">{units}</span>
-            {progression.length > 1 && (() => {
-              const first = progression[0]!.v;
-              const last = progression[progression.length - 1]!.v;
-              const delta = last - first;
-              if (Math.abs(delta) < 0.5) return null;
-              return (
-                <span
-                  className={`text-xs font-bold ml-2 ${delta > 0 ? "text-emerald-500" : "text-red-500"}`}
-                  style={{ fontVariantNumeric: "tabular-nums" }}
-                >
-                  {delta > 0 ? "+" : ""}{delta.toFixed(0)} {units} all-time
-                </span>
-              );
-            })()}
+        {/* Stacked beside the lime tile on phones; its own columns on desktop. */}
+        <div className="grid grid-rows-2 gap-2 lg:contents">
+          <div className="card p-3 lg:p-4">
+            <p className="label">Sets</p>
+            <p className="num mt-1 text-2xl font-extrabold lg:text-4xl">{totals.sets.toLocaleString()}</p>
           </div>
-        )}
-        <ProgressionChart data={progression} />
+          <div className="card p-3 lg:p-4">
+            <p className="label">Volume · {units}</p>
+            <p className="num mt-1 text-2xl font-extrabold lg:text-4xl">
+              {Math.round(fromKg(totals.volume, units) / 1000).toLocaleString()}k
+            </p>
+          </div>
+        </div>
       </section>
 
-      {/* Training emphasis — rep-range distribution */}
-      <RepRangeSection ranges={repRanges} />
+      <div
+        className="space-y-6 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0"
+        style={{ ["--i" as string]: 2 }}
+      >
+        <div className="space-y-6">
+          {/* Per-exercise 1RM progression */}
+          <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="label">Estimated 1RM</p>
+                <p className="text-xs text-ink-2">Top set per session, Epley + Brzycki</p>
+              </div>
+              {exercises.length > 0 && (
+                <label className="field compact w-[168px] shrink-0">
+                  <span>Exercise</span>
+                  <select value={selected ?? ""} onChange={(e) => setPicked(e.target.value)}>
+                    {exercises.map((ex) => (
+                      <option key={ex} value={ex}>
+                        {ex}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+            {progression.length > 0 && (
+              <p className="num mb-3 mt-2 flex flex-wrap items-baseline gap-x-2">
+                <span className="text-3xl font-extrabold tracking-tight">{latest.toFixed(0)}</span>
+                <span className="text-sm font-semibold text-ink-3">{units}</span>
+                {progression.length > 1 && Math.abs(delta) >= 0.5 && (
+                  <span className={`text-xs font-bold ${delta > 0 ? "text-ok" : "text-over"}`}>
+                    {delta > 0 ? "+" : ""}
+                    {delta.toFixed(0)} {units} all-time
+                  </span>
+                )}
+              </p>
+            )}
+            <ProgressionChart data={progression} />
+          </section>
 
-      {/* Frequency calendar */}
-      <MonthCalendar workouts={workouts} />
+          {/* Training emphasis — rep-range distribution */}
+          <RepRangeSection ranges={repRanges} />
+        </div>
 
-      {/* Bodyweight */}
-      <BodyweightSection />
+        <div className="space-y-6">
+          {/* Frequency calendar */}
+          <MonthCalendar workouts={workouts} />
+
+          {/* Bodyweight */}
+          <BodyweightSection />
+        </div>
+      </div>
     </div>
   );
 }
@@ -256,50 +277,52 @@ function BodyweightSection() {
   const delta = latest && oldest ? latest.v - oldest.v : 0;
 
   return (
-    <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-      <div className="flex items-center justify-between mb-4">
+    <section className="plunk face-card space-y-4 p-4" style={{ ["--d" as string]: "4px" }} aria-label="Bodyweight">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-1.5">
-            <Scale className="w-4 h-4 text-emerald-500 dark:text-emerald-400" /> Bodyweight
-          </h3>
-          <p className="text-xs text-zinc-500">Daily or weekly check-in</p>
+          <p className="label flex items-center gap-1.5">
+            <Scale className="h-3.5 w-3.5" /> Bodyweight
+          </p>
+          <p className="text-xs text-ink-2">Daily or weekly check-in</p>
         </div>
         {latest && (
           <div className="text-right">
-            <div className="text-xl font-bold text-zinc-900 dark:text-white leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
+            <p className="num text-3xl font-extrabold leading-none">
               {latest.v.toFixed(1)}
-              <span className="text-xs text-zinc-500 font-semibold ml-1">{units}</span>
-            </div>
+              <span className="ml-1 text-sm font-semibold text-ink-3">{units}</span>
+            </p>
             {Math.abs(delta) >= 0.1 && (
-              <div className={`text-[10px] font-bold mt-0.5 ${delta > 0 ? "text-amber-500" : "text-emerald-500"}`} style={{ fontVariantNumeric: "tabular-nums" }}>
-                {delta > 0 ? "+" : ""}{delta.toFixed(1)} {units} all-time
-              </div>
+              <p className={`num mt-1 text-xs font-semibold ${delta > 0 ? "text-warn" : "text-ok"}`}>
+                {delta > 0 ? "+" : ""}
+                {delta.toFixed(1)} {units} all-time
+              </p>
             )}
           </div>
         )}
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={`Today's weight (${units})`}
-          className="flex-1 bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none placeholder-zinc-400 dark:placeholder-zinc-600"
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        />
-        <Button onClick={log} loading={saving} size="sm" className="shrink-0">
-          <Plus className="w-4 h-4" /> Log
+      <form
+        className="flex items-start gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void log();
+        }}
+      >
+        <label className="field compact min-w-0 flex-1">
+          <span>Today&apos;s weight ({units})</span>
+          <input type="text" inputMode="decimal" value={input} onChange={(e) => setInput(e.target.value)} className="num font-bold" />
+        </label>
+        <Button type="submit" loading={saving} variant="lime" size="sm" className="h-11 shrink-0">
+          <Plus className="h-4 w-4" /> Log
         </Button>
-      </div>
+      </form>
 
       {series.length >= 2 ? (
         <BodyweightChart data={series} />
       ) : series.length === 1 ? (
-        <p className="text-xs text-zinc-500 italic text-center py-4">One more entry and the trend appears.</p>
+        <p className="py-4 text-center text-xs text-ink-3">One more entry and the trend appears.</p>
       ) : (
-        <p className="text-xs text-zinc-500 italic text-center py-4">No bodyweight logged yet.</p>
+        <p className="py-4 text-center text-xs text-ink-3">No bodyweight logged yet.</p>
       )}
     </section>
   );
@@ -308,42 +331,18 @@ function BodyweightSection() {
 function BodyweightChart({ data }: { data: { date: Date; v: number }[] }) {
   const max = Math.max(...data.map((d) => d.v));
   const min = Math.min(...data.map((d) => d.v));
-  const range = max - min || 1;
-  const x = (i: number) => (i / (data.length - 1)) * 100;
-  const y = (v: number) => 100 - ((v - min) / range) * 80 - 10;
-  const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
-  const area = `0,100 ${points} 100,100`;
+  const fmt = (d: Date | undefined) => d?.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
   return (
     <div>
-      <div className="flex justify-between text-[10px] text-zinc-400 mb-1 px-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>
-        <span>{max.toFixed(1)}</span>
-        <span>{min.toFixed(1)}</span>
+      <div className="num mb-1 flex justify-between text-[10px] text-ink-3">
+        <span>High {max.toFixed(1)}</span>
+        <span>Low {min.toFixed(1)}</span>
       </div>
-      <svg viewBox="0 0 100 100" className="w-full h-32" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="bw-grad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon points={area} fill="url(#bw-grad)" />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="#10b981"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        {data.map((d, i) => (
-          <circle key={i} cx={x(i)} cy={y(d.v)} r="1.2" fill="#10b981" vectorEffect="non-scaling-stroke" />
-        ))}
-      </svg>
-      <div className="flex justify-between text-[10px] text-zinc-400 mt-1 px-0.5">
-        <span>{data[0]?.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-        <span>{data[data.length - 1]?.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+      <TrendChart data={data} spread={0.8} />
+      <div className="mt-1.5 flex justify-between text-[10px] text-ink-3">
+        <span>{fmt(data[0]?.date)}</span>
+        <span>{fmt(data[data.length - 1]?.date)}</span>
       </div>
     </div>
   );
@@ -355,82 +354,59 @@ function RepRangeSection({
   ranges: { strength: number; hypertrophy: number; endurance: number; total: number };
 }) {
   const rows = [
-    { key: "strength", label: "Strength", hint: "1–5 reps", color: "#ef4444", count: ranges.strength },
-    { key: "hypertrophy", label: "Hypertrophy", hint: "6–12 reps", color: "#3b82f6", count: ranges.hypertrophy },
-    { key: "endurance", label: "Endurance", hint: "13+ reps", color: "#10b981", count: ranges.endurance },
+    { key: "strength", label: "Strength", hint: "1–5 reps", color: "rgb(var(--over))", count: ranges.strength },
+    { key: "hypertrophy", label: "Hypertrophy", hint: "6–12 reps", color: "rgb(var(--blue))", count: ranges.hypertrophy },
+    { key: "endurance", label: "Endurance", hint: "13+ reps", color: "rgb(var(--ok))", count: ranges.endurance },
   ];
   const top = rows.reduce((a, b) => (b.count > a.count ? b : a), rows[0]!);
 
   return (
-    <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-      <div className="flex items-center justify-between mb-4">
+    <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-bold text-zinc-900 dark:text-white text-sm">Training emphasis</h3>
-          <p className="text-xs text-zinc-500">Completed sets by rep range</p>
+          <p className="label">Training emphasis</p>
+          <p className="text-xs text-ink-2">Completed sets by rep range</p>
         </div>
         {ranges.total > 0 && (
           <div className="text-right">
-            <div className="text-xl font-bold text-zinc-900 dark:text-white leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {ranges.total}
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mt-0.5">Sets</div>
+            <p className="num text-2xl font-extrabold leading-none">{ranges.total}</p>
+            <p className="label mt-1">Sets</p>
           </div>
         )}
       </div>
 
       {ranges.total === 0 ? (
-        <p className="text-xs text-zinc-500 italic text-center py-8">
-          Complete some sets to see your rep-range split.
-        </p>
+        <p className="py-8 text-center text-xs text-ink-3">Complete some sets to see your rep-range split.</p>
       ) : (
         <>
-          <ul className="space-y-3">
+          <ul className="mt-4 space-y-3">
             {rows.map((r) => {
               const pct = Math.round((r.count / ranges.total) * 100);
               return (
-                <li key={r.key} className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-baseline mb-1">
-                      <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-                        {r.label}{" "}
-                        <span className="text-xs font-normal text-zinc-400 dark:text-zinc-500">{r.hint}</span>
-                      </span>
-                      <span className="text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
-                        <span className="text-zinc-700 dark:text-zinc-300 font-semibold">{pct}%</span>
-                        <span className="text-zinc-400 dark:text-zinc-600"> · {r.count}</span>
-                      </span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${pct}%`, backgroundColor: r.color }}
-                      />
-                    </div>
+                <li key={r.key}>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 font-semibold">
+                      <span className="h-2.5 w-2.5 shrink-0" style={{ backgroundColor: r.color }} aria-hidden />
+                      {r.label} <span className="text-xs font-normal text-ink-3">{r.hint}</span>
+                    </span>
+                    <span className="num shrink-0 text-xs">
+                      <span className="font-bold">{pct}%</span>
+                      <span className="text-ink-3"> · {r.count}</span>
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 bg-elevated">
+                    <div className="bar-anim h-full" style={{ width: `${pct}%`, backgroundColor: r.color }} />
                   </div>
                 </li>
               );
             })}
           </ul>
-          <p className="text-xs text-zinc-500 mt-4">
-            Most of your work is in the{" "}
-            <span className="font-semibold text-zinc-700 dark:text-zinc-300">{top.label.toLowerCase()}</span> range.
+          <p className="mt-4 text-sm text-ink-2">
+            Most of your work is in the <span className="font-bold text-ink">{top.label.toLowerCase()}</span> range.
           </p>
         </>
       )}
     </section>
-  );
-}
-
-function TotalCard({ icon, label, value, color, bg }: { icon: React.ReactNode; label: string; value: string; color: string; bg: string }) {
-  return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-3">
-      <div className={`p-1.5 rounded-lg inline-flex ${bg} ${color}`}>{icon}</div>
-      <div className="text-xl font-bold text-zinc-900 dark:text-white mt-2 leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
-        {value}
-      </div>
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mt-1">{label}</div>
-    </div>
   );
 }
 
@@ -462,7 +438,7 @@ function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets
       .map((k) => {
         const [y, m] = k.split("-").map(Number);
         const d = new Date(y!, m! - 1, 1);
-        return { key: k, label: d.toLocaleDateString(undefined, { month: "long", year: "numeric" }) };
+        return { key: k, label: d.toLocaleDateString(undefined, { month: "short", year: "numeric" }) };
       });
   }, [workouts, thisKey]);
 
@@ -497,60 +473,54 @@ function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets
 
   // Color scale based on set count per day
   const color = (sets: number) => {
-    if (sets === 0) return "bg-zinc-100 dark:bg-zinc-800/60";
-    if (sets <= 5) return "bg-brand-500/30";
-    if (sets <= 12) return "bg-brand-500/55";
-    if (sets <= 20) return "bg-brand-500/80";
-    return "bg-brand-500";
+    if (sets === 0) return "border border-line-soft text-ink-3";
+    if (sets <= 5) return "bg-blue/30";
+    if (sets <= 12) return "bg-blue/55";
+    if (sets <= 20) return "bg-blue/80 text-white";
+    return "bg-blue text-white";
   };
 
-  const monthStats = useMemo(() => {
-    let totalSessions = 0;
-    let totalSets = 0;
-    for (const c of cells) {
-      if (c) {
-        totalSessions += c.workouts;
-        totalSets += c.sets;
-      }
+  let totalSessions = 0;
+  let totalSets = 0;
+  for (const c of cells) {
+    if (c) {
+      totalSessions += c.workouts;
+      totalSets += c.sets;
     }
-    return { totalSessions, totalSets };
-  }, [cells]);
+  }
 
   return (
-    <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-      <div className="flex items-center justify-between mb-4 gap-2">
+    <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-1.5">
-            <Calendar className="w-4 h-4" /> Training frequency
-          </h3>
-          <p className="text-xs text-zinc-500">
-            {monthStats.totalSessions} session{monthStats.totalSessions === 1 ? "" : "s"} · {monthStats.totalSets} sets
+          <p className="label flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" /> Training frequency
+          </p>
+          <p className="num text-xs text-ink-2">
+            {totalSessions} session{totalSessions === 1 ? "" : "s"} · {totalSets} sets
           </p>
         </div>
-        <select
-          value={picked}
-          onChange={(e) => setPicked(e.target.value)}
-          className="bg-zinc-100 dark:bg-zinc-800 text-sm font-semibold text-zinc-700 dark:text-zinc-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-brand-500 max-w-[170px]"
-        >
-          {monthOptions.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
+        <label className="field compact w-[132px] shrink-0">
+          <span>Month</span>
+          <select value={picked} onChange={(e) => setPicked(e.target.value)}>
+            {monthOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {/* Day-of-week header */}
-      <div className="grid grid-cols-7 gap-1 mb-1 text-center">
+      {/* Day-of-week header + calendar grid */}
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center">
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="text-[10px] text-zinc-400 dark:text-zinc-600 font-bold uppercase">
+          <span key={i} className="label">
             {d}
-          </div>
+          </span>
         ))}
-      </div>
-
-      {/* Calendar grid */}
-      <div className="relative grid grid-cols-7 gap-1">
         {cells.map((c, i) => {
-          if (!c) return <div key={`empty-${i}`} className="aspect-square" />;
+          if (!c) return <span key={`empty-${i}`} className="aspect-square" />;
           const isToday = c.date.getTime() === today.getTime();
           return (
             <button
@@ -561,9 +531,9 @@ function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets
               onTouchStart={() => setHover(c)}
               onClick={() => setHover(c)}
               aria-label={`${c.date.toDateString()}: ${c.workouts} workouts, ${c.sets} sets`}
-              className={`aspect-square rounded-md flex items-center justify-center text-[10px] font-semibold transition-colors ${color(c.sets)} ${
-                c.sets > 12 ? "text-white" : "text-zinc-700 dark:text-zinc-300"
-              } ${isToday ? "ring-2 ring-brand-500 ring-offset-1 ring-offset-white dark:ring-offset-zinc-900" : ""}`}
+              className={`num flex aspect-square items-center justify-center text-xs font-bold transition-colors ${color(c.sets)} ${
+                isToday ? "ring-2 ring-inset ring-ink" : ""
+              }`}
             >
               {c.date.getDate()}
             </button>
@@ -572,38 +542,37 @@ function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets
       </div>
 
       {/* Tooltip strip */}
-      <div className="mt-3 min-h-[28px] text-xs text-zinc-600 dark:text-zinc-400">
+      <p className="num mt-3 min-h-[20px] text-xs text-ink-2">
         {hover ? (
-          <span>
-            <strong className="text-zinc-900 dark:text-white">
+          <>
+            <strong className="text-ink">
               {hover.date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
             </strong>
             {" — "}
             {hover.workouts === 0 ? (
-              <span className="text-zinc-500">Rest day</span>
+              <span className="text-ink-3">Rest day</span>
             ) : (
               <>
-                <strong className="text-zinc-800 dark:text-zinc-200">{hover.workouts}</strong> workout
-                {hover.workouts === 1 ? "" : "s"} ·{" "}
-                <strong className="text-zinc-800 dark:text-zinc-200">{hover.sets}</strong> set
+                <strong className="text-ink">{hover.workouts}</strong> workout
+                {hover.workouts === 1 ? "" : "s"} · <strong className="text-ink">{hover.sets}</strong> set
                 {hover.sets === 1 ? "" : "s"}
               </>
             )}
-          </span>
+          </>
         ) : (
-          <span className="text-zinc-400 dark:text-zinc-600">Tap a day for details</span>
+          <span className="text-ink-3">Tap a day for details</span>
         )}
-      </div>
+      </p>
 
       {/* Legend */}
-      <div className="flex items-center gap-1 mt-3 text-[10px] text-zinc-500">
-        <span>Less</span>
-        <span className="w-2.5 h-2.5 rounded-sm bg-zinc-100 dark:bg-zinc-800/60" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/30" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/55" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500/80" />
-        <span className="w-2.5 h-2.5 rounded-sm bg-brand-500" />
-        <span>More</span>
+      <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+        <span className="mr-1">Less</span>
+        <span className="h-3 w-3 border border-line-soft" />
+        <span className="h-3 w-3 bg-blue/30" />
+        <span className="h-3 w-3 bg-blue/55" />
+        <span className="h-3 w-3 bg-blue/80" />
+        <span className="h-3 w-3 bg-blue" />
+        <span className="ml-1">More</span>
       </div>
     </section>
   );

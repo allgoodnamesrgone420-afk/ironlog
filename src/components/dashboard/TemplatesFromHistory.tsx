@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { ArrowRight, Layers, Clock, Play } from "lucide-react";
 import type { Workout } from "@/types/workout";
 import { useUnits } from "@/providers/UnitsProvider";
 import { formatWeight } from "@/lib/units/converter";
 import { workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { daysAgo } from "@/lib/utils";
+
+/** Accent per routine card, in frequency order. */
+const ACCENTS = ["rgb(var(--lime))", "rgb(var(--violet))", "rgb(var(--blue))"];
 
 /**
  * Templates surfaced from past workouts. We group by workout name (case-insensitive)
@@ -36,77 +38,46 @@ export function TemplatesFromHistory({ workouts }: { workouts: Workout[] }) {
 
   if (templates.length === 0) {
     return (
-      <Link
-        href="/log"
-        className="block rounded-3xl border-2 border-dashed border-zinc-300 dark:border-zinc-800 p-8 text-center hover:bg-zinc-100/50 dark:hover:bg-zinc-900/50 transition-colors"
-      >
-        <div className="w-12 h-12 mx-auto rounded-2xl bg-brand-500/10 flex items-center justify-center mb-3">
-          <Play className="w-6 h-6 text-brand-500 fill-current" />
-        </div>
-        <p className="font-bold text-zinc-800 dark:text-white">Start your first workout</p>
-        <p className="text-xs text-zinc-500 mt-1">Your routines will appear here as templates.</p>
-      </Link>
+      <div className="card p-5 text-center">
+        <p className="font-semibold">Nothing logged yet.</p>
+        <p className="mt-1 text-sm text-ink-2">Your routines will appear here as templates.</p>
+        <Link href="/log" className="pop-btn sm lime mt-4">
+          Start your first workout
+        </Link>
+      </div>
     );
   }
 
   return (
-    <section>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <h3 className="font-bold text-zinc-900 dark:text-white text-sm flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-brand-500 dark:text-brand-400" /> Your routines
-        </h3>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
-          Tap to repeat
-        </span>
+    <section className="space-y-3" aria-label="Your routines">
+      <div className="flex items-baseline justify-between">
+        <p className="label">Your routines</p>
+        <p className="text-[11px] font-semibold text-ink-3">Tap to repeat</p>
       </div>
-      <div className="space-y-2.5">
-        {templates.map((t) => (
-          <Link
-            key={t.latest.id}
-            href={`/log?repeat=${t.latest.id}`}
-            className="group block rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-4 hover:border-brand-400 dark:hover:border-brand-500/40 transition-colors"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-zinc-900 dark:text-white text-base truncate">{t.latest.name}</h4>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-500/10 px-1.5 py-0.5 rounded shrink-0">
-                    {t.count}×
-                  </span>
-                </div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2 mt-1">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {daysAgo(t.latest.date)}
-                  </span>
-                  <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                  <span>{t.latest.exercises.length} ex</span>
-                  <span className="text-zinc-300 dark:text-zinc-700">·</span>
-                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {formatWeight(workoutVolume(t.latest, bodyweightKg), units, 0)}
-                  </span>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1">
-              {t.latest.exercises.slice(0, 4).map((ex) => (
-                <span
-                  key={ex.id}
-                  className="text-[10px] text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 rounded truncate max-w-[120px]"
-                >
-                  {ex.name}
-                </span>
-              ))}
-              {t.latest.exercises.length > 4 && (
-                <span className="text-[10px] text-zinc-500 px-1.5 py-0.5">
-                  +{t.latest.exercises.length - 4}
-                </span>
-              )}
-            </div>
-          </Link>
-        ))}
-      </div>
+      {templates.map((t, i) => (
+        <Link
+          key={t.latest.id}
+          href={`/log?repeat=${t.latest.id}`}
+          className="card flex items-center gap-3 border-l-[6px] p-3 transition-colors hover:bg-elevated"
+          style={{ borderLeftColor: ACCENTS[i % ACCENTS.length] }}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate font-bold">{t.latest.name}</span>
+              <span className="tag num shrink-0 text-ink-2">{t.count}×</span>
+            </span>
+            <span className="num mt-0.5 block truncate text-xs text-ink-2">
+              {daysAgo(t.latest.date)} · {t.latest.exercises.length} ex · {formatWeight(workoutVolume(t.latest, bodyweightKg), units, 0)}
+            </span>
+            <span className="mt-0.5 block truncate text-xs text-ink-3">
+              {t.latest.exercises.map((ex) => ex.name).join(", ")}
+            </span>
+          </span>
+          <span className="pop-btn sm lime shrink-0" aria-hidden="true">
+            Repeat
+          </span>
+        </Link>
+      ))}
     </section>
   );
 }

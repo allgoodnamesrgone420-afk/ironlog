@@ -267,53 +267,50 @@ function LogPageInner() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-32">
+    <div className="mx-auto max-w-[640px] space-y-6 pb-28">
       {/* Header */}
       <Card className="p-4">
-        <div className="flex justify-between items-start gap-3">
-          <div className="flex-1">
-            <label className="block text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
-              Session
-            </label>
+        <div className="flex items-start justify-between gap-3">
+          <label className="min-w-0 flex-1">
+            <span className="label block">Session</span>
             <input
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               maxLength={80}
-              className="text-2xl font-bold text-zinc-800 dark:text-white bg-transparent w-full focus:outline-none placeholder-zinc-300"
+              className="mt-0.5 w-full border-b-2 border-transparent bg-transparent text-2xl font-extrabold tracking-tight placeholder:text-ink-3 focus:border-lime focus:outline-none"
               placeholder="e.g. Leg Day"
             />
-          </div>
+          </label>
           <button
             onClick={() => setAiOpen(true)}
             aria-label="Generate workout with AI"
-            className="bg-gradient-to-br from-violet-500 to-purple-600 text-white p-2.5 rounded-xl shadow-md hover:scale-105 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="pop-btn violet h-11 min-h-0 w-11 shrink-0 px-0"
+            style={{ ["--d" as string]: "3px" }}
           >
-            <Sparkles className="w-5 h-5" />
+            <Sparkles className="h-5 w-5" />
           </button>
         </div>
-        <div className="text-xs text-zinc-500 dark:text-zinc-500 flex items-center gap-1 mt-2">
-          <Calendar className="w-4 h-4" />
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-2">
+          <Calendar className="h-3.5 w-3.5" />
           {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-        </div>
+        </p>
       </Card>
 
       {/* Exercise list */}
-      <div className="space-y-4">
+      <div className="space-y-5">
         {groups.map((group, gi) => {
           const isSuper = group.length > 1;
           return (
-            <div
-              key={gi}
-              className={`relative animate-fade-in rounded-2xl ${
-                isSuper ? "border-l-4 border-amber-500 bg-amber-50/40 dark:bg-amber-900/10 pl-2" : ""
-              }`}
-            >
+            <div key={gi} className={isSuper ? "space-y-3 border-l-[6px] border-l-[#ffb800] pl-3" : ""}>
               {isSuper && (
-                <div className="absolute -left-4 top-4 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-r-md shadow-sm flex items-center gap-1 z-10">
-                  <LinkIcon className="w-3 h-3" /> Superset
-                </div>
+                <span
+                  className="plunk face-yellow inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.1em]"
+                  style={{ ["--d" as string]: "2px" }}
+                >
+                  <LinkIcon className="h-3 w-3" /> Superset
+                </span>
               )}
-              <div className={`space-y-4 ${isSuper ? "py-2" : ""}`}>
+              <div className="space-y-5">
                 {group.map((exercise, ix) => {
                   const last = lastSessionFor(workouts, exercise.name);
                   // Plate calc target: next incomplete set, else the LAST set (so completing
@@ -322,8 +319,8 @@ function LogPageInner() {
                     exercise.sets.find((s) => !s.completed) ??
                     exercise.sets[exercise.sets.length - 1];
                   return (
-                    <Card key={exercise.id} className="overflow-hidden relative">
-                      <div className="p-5 pb-3 relative">
+                    <Card key={exercise.id}>
+                      <div className="p-4 pb-3">
                         <ExerciseAutocomplete
                           value={exercise.name}
                           customExercises={customExercises}
@@ -345,27 +342,22 @@ function LogPageInner() {
 
                         {/* Muscle picker — only when the name isn't recognised by the library */}
                         {exercise.name.trim() && !findExercise(exercise.name) && (
-                          <div className="mt-2">
-                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold">
-                              Custom exercise — tag muscles
-                            </p>
-                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          <div className="mt-3">
+                            <p className="label">Custom exercise — tag muscles</p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
                               {(["chest","back","shoulders","biceps","triceps","forearms","core","quads","hamstrings","glutes","calves","cardio"] as MuscleGroup[]).map((m) => {
                                 const selected = (exercise.muscles ?? []).includes(m);
                                 return (
                                   <button
                                     key={m}
                                     type="button"
+                                    aria-pressed={selected}
                                     onClick={() => {
                                       const cur = exercise.muscles ?? [];
                                       const next = selected ? cur.filter((x) => x !== m) : [...cur, m];
                                       updateExercise(exercise.id, { muscles: next });
                                     }}
-                                    className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${
-                                      selected
-                                        ? "bg-brand-500 text-white"
-                                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
-                                    }`}
+                                    className="chip min-h-8 px-2 text-[11px]"
                                   >
                                     {MUSCLE_LABELS[m]}
                                   </button>
@@ -377,35 +369,34 @@ function LogPageInner() {
 
                         {/* Last-session hint (progressive overload) */}
                         {last && exercise.name && (
-                          <div className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            Last time: <strong className="text-zinc-700 dark:text-zinc-300">{last.kg}kg × {last.reps}</strong>
-                            <span className="text-emerald-600 dark:text-emerald-400">· try {Math.round(last.kg * 1.025)}kg</span>
-                          </div>
+                          <p className="num mt-2 flex flex-wrap items-center gap-1 text-[11px] text-ink-2">
+                            <TrendingUp className="h-3 w-3" />
+                            Last time: <strong className="text-ink">{last.kg}kg × {last.reps}</strong>
+                            <span className="font-semibold text-ok">· try {Math.round(last.kg * 1.025)}kg</span>
+                          </p>
                         )}
 
-                        <div className="mt-3 flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800 rounded-lg px-3 py-2 focus-within:bg-transparent focus-within:ring-2 focus-within:ring-brand-300 transition-all">
-                          <MessageSquareQuote className="w-4 h-4 text-zinc-400 shrink-0" />
+                        <label className="mt-3 flex items-center gap-2 border border-line-soft bg-field px-3 focus-within:border-ink focus-within:shadow-[3px_3px_0_rgb(var(--lime))]">
+                          <MessageSquareQuote className="h-4 w-4 shrink-0 text-ink-3" />
+                          <span className="sr-only">Notes</span>
                           <input
                             placeholder="Notes (form cues, tempo)"
                             value={exercise.notes ?? ""}
                             onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
                             maxLength={500}
-                            className="bg-transparent text-sm w-full focus:outline-none text-zinc-700 dark:text-zinc-200"
+                            className="h-10 w-full bg-transparent text-sm placeholder:text-ink-3 focus:outline-none"
                           />
-                        </div>
+                        </label>
 
-                        <details className="mt-3 group">
-                          <summary className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 cursor-pointer flex items-center gap-1.5 select-none list-none [&::-webkit-details-marker]:hidden">
-                            <Settings2 className="w-3 h-3" />
+                        <details className="group mt-3">
+                          <summary className="flex cursor-pointer select-none list-none items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                            <Settings2 className="h-3.5 w-3.5" />
                             <span>Machine settings</span>
-                            <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+                            <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
                           </summary>
                           <div className="mt-3 grid grid-cols-2 gap-2">
-                            <label className="flex flex-col gap-1 min-w-0">
-                              <span className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-500 font-bold">
-                                Seat / pad
-                              </span>
+                            <label className="field compact min-w-0">
+                              <span>Seat / pad</span>
                               <input
                                 value={exercise.settings?.seat ?? ""}
                                 onChange={(e) =>
@@ -415,13 +406,10 @@ function LogPageInner() {
                                 }
                                 placeholder="e.g. 5"
                                 maxLength={20}
-                                className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-brand-500 outline-none placeholder-zinc-400 dark:placeholder-zinc-600"
                               />
                             </label>
-                            <label className="flex flex-col gap-1 min-w-0">
-                              <span className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-500 font-bold">
-                                Incline / angle
-                              </span>
+                            <label className="field compact min-w-0">
+                              <span>Incline / angle</span>
                               <input
                                 value={exercise.settings?.incline ?? ""}
                                 onChange={(e) =>
@@ -431,7 +419,6 @@ function LogPageInner() {
                                 }
                                 placeholder="e.g. 30°"
                                 maxLength={20}
-                                className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-brand-500 outline-none placeholder-zinc-400 dark:placeholder-zinc-600"
                               />
                             </label>
                           </div>
@@ -444,14 +431,14 @@ function LogPageInner() {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-[28px_1fr_1fr_auto] gap-2 px-4 py-2 bg-zinc-50/50 dark:bg-zinc-800/40 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider text-center border-y border-zinc-100 dark:border-zinc-800">
-                        <div>#</div>
-                        <div>{_units}</div>
-                        <div>Reps</div>
-                        <div className="w-[100px]"></div>
+                      <div className="grid grid-cols-[28px_1fr_1fr_88px] gap-2 border-y border-line-soft bg-elevated/60 px-4 py-2 text-center">
+                        <div className="label">#</div>
+                        <div className="label">{_units}</div>
+                        <div className="label">Reps</div>
+                        <div />
                       </div>
 
-                      <div className="px-4 py-3 space-y-2">
+                      <div className="space-y-2 px-4 py-3">
                         {exercise.sets.map((set, idx) => (
                           <SetRow
                             key={set.id}
@@ -470,12 +457,12 @@ function LogPageInner() {
 
                       <button
                         onClick={() => addSet(exercise.id)}
-                        className="w-full py-3 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-brand-600 dark:text-brand-400 font-semibold text-sm flex items-center justify-center gap-2 border-t border-zinc-100 dark:border-zinc-800 transition-colors"
+                        className="flex h-11 w-full items-center justify-center gap-2 border-t border-dashed border-line-soft text-xs font-bold uppercase tracking-[0.1em] text-ink-2 transition-colors hover:bg-elevated hover:text-ink"
                       >
-                        <Plus className="w-4 h-4" /> Add set
+                        <Plus className="h-4 w-4" /> Add set
                       </button>
 
-                      <div className="flex divide-x divide-zinc-100 dark:divide-zinc-800 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex divide-x divide-line-soft border-t border-line-soft text-[11px] font-bold tracking-[0.08em]">
                         {ix === 0 && (
                           <>
                             <button
@@ -483,18 +470,18 @@ function LogPageInner() {
                               onClick={() => moveGroup(gi, -1)}
                               disabled={gi === 0}
                               aria-label="Move up"
-                              className="flex-1 py-3 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition-colors"
+                              className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                             >
-                              <ChevronUp className="w-4 h-4" /> Up
+                              <ChevronUp className="h-4 w-4" /> Up
                             </button>
                             <button
                               type="button"
                               onClick={() => moveGroup(gi, 1)}
                               disabled={gi === groups.length - 1}
                               aria-label="Move down"
-                              className="flex-1 py-3 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1 transition-colors"
+                              className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-ink-2 transition-colors hover:bg-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-30"
                             >
-                              <ChevronDown className="w-4 h-4" /> Down
+                              <ChevronDown className="h-4 w-4" /> Down
                             </button>
                           </>
                         )}
@@ -502,17 +489,17 @@ function LogPageInner() {
                           <button
                             type="button"
                             onClick={() => addSuperset(exercise.id, exercise.supersetId ?? null)}
-                            className="flex-1 py-3 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center justify-center gap-1 transition-colors"
+                            className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-warn transition-colors hover:bg-elevated"
                           >
-                            <LinkIcon className="w-4 h-4" /> Superset
+                            <LinkIcon className="h-4 w-4" /> Superset
                           </button>
                         )}
                         <button
                           type="button"
                           onClick={() => removeExercise(exercise.id)}
-                          className="flex-1 py-3 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center gap-1 transition-colors"
+                          className="flex h-11 flex-1 items-center justify-center gap-1 uppercase text-over transition-colors hover:bg-elevated"
                         >
-                          <Trash2 className="w-4 h-4" /> Remove
+                          <Trash2 className="h-4 w-4" /> Remove
                         </button>
                       </div>
                     </Card>
@@ -524,9 +511,9 @@ function LogPageInner() {
                       const last = group[group.length - 1]!;
                       addSuperset(last.id, last.supersetId);
                     }}
-                    className="w-full py-3 rounded-xl border-2 border-dashed border-amber-200 dark:border-amber-900/50 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 flex items-center justify-center gap-2 font-semibold transition-colors"
+                    className="flex h-11 w-full items-center justify-center gap-2 border border-dashed border-warn/70 text-xs font-bold uppercase tracking-[0.1em] text-warn transition-colors hover:bg-warn/10"
                   >
-                    <Plus className="w-4 h-4" /> Add to superset
+                    <Plus className="h-4 w-4" /> Add to superset
                   </button>
                 )}
               </div>
@@ -536,11 +523,11 @@ function LogPageInner() {
       </div>
 
       <div className="flex flex-col gap-3 pt-2">
-        <Button onClick={addExercise} variant="secondary" size="lg" className="w-full">
-          <Plus className="w-5 h-5" /> Add exercise
+        <Button onClick={addExercise} variant="secondary" size="lg" block>
+          <Plus className="h-5 w-5" /> Add exercise
         </Button>
-        <Button onClick={finish} loading={saving} size="lg" className="w-full bg-red-600 hover:bg-red-700">
-          <Save className="w-5 h-5" /> Finish workout
+        <Button onClick={finish} loading={saving} variant="lime" size="lg" block>
+          <Save className="h-5 w-5" /> Finish workout
         </Button>
         <Confirm
           title="Discard draft?"
@@ -553,7 +540,10 @@ function LogPageInner() {
             setDraft({ name: "Evening Lift", exercises: [blankExercise()], startedAt: Date.now() });
           }}
           trigger={(open) => (
-            <button onClick={open} className="text-xs text-zinc-500 hover:text-red-500 mx-auto">
+            <button
+              onClick={open}
+              className="mx-auto min-h-[44px] px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3 transition-colors hover:text-over"
+            >
               Discard draft
             </button>
           )}

@@ -30,28 +30,28 @@ export default function VerifyPage() {
 
   return (
     <AuthShell subtitle="One last step.">
-      <div className="flex flex-col items-center text-center">
-        <div className="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center mb-4">
-          <Mail className="w-7 h-7 text-brand-600" />
-        </div>
-        <h2 className="font-bold text-zinc-900 dark:text-white text-lg">Verify your email</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-          We sent a verification link to <strong>{user?.email ?? "your inbox"}</strong>. Click it, then return here.
+      <div className="plunk face-card p-5" style={{ ["--d" as string]: "5px" }}>
+        <span className="flex h-12 w-12 items-center justify-center bg-violet text-on-accent" aria-hidden>
+          <Mail className="h-6 w-6" />
+        </span>
+        <h2 className="mt-4 text-xl font-extrabold tracking-tight">Verify your email</h2>
+        <p className="mt-1 text-sm text-ink-2">
+          We sent a verification link to <strong className="text-ink">{user?.email ?? "your inbox"}</strong>. Click it, then return here.
         </p>
-        <div className="flex flex-col gap-2 w-full mt-6">
-          <Link href="/dashboard">
-            <Button className="w-full">I&rsquo;ve verified — continue</Button>
-          </Link>
-          <Button variant="secondary" onClick={resend} loading={sending} className="w-full">
-            Resend email
-          </Button>
-          <button
-            onClick={() => signOut(auth)}
-            className="text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 mt-2"
-          >
-            Sign out
-          </button>
-        </div>
+      </div>
+      <div className="mt-6 flex flex-col gap-3">
+        <Link href="/dashboard" className="pop-btn lime wide">
+          I&rsquo;ve verified — continue
+        </Link>
+        <Button variant="secondary" onClick={resend} loading={sending} block>
+          Resend email
+        </Button>
+        <button
+          onClick={() => signOut(auth)}
+          className="mx-auto min-h-[44px] px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3 hover:text-ink"
+        >
+          Sign out
+        </button>
       </div>
     </AuthShell>
   );

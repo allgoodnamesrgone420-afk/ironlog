@@ -99,12 +99,12 @@ export function ExerciseAutocomplete({ value, onChange, onPick, placeholder = "E
           }
         }}
         placeholder={placeholder}
-        className="text-lg font-bold text-zinc-900 dark:text-white bg-transparent w-full pr-20 focus:outline-none border-b border-transparent focus:border-brand-300 placeholder-zinc-300 dark:placeholder-zinc-600 transition-colors"
+        className="w-full border-b-2 border-transparent bg-transparent pr-2 text-lg font-extrabold tracking-tight transition-colors placeholder:text-ink-3 focus:border-lime focus:outline-none"
       />
       {open && suggestions.length > 0 && (
         <ul
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-lg max-h-64 overflow-y-auto"
+          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto border border-line bg-surface shadow-[4px_4px_0_#000]"
         >
           {suggestions.map((s, i) => (
             <li key={`${s.source}-${s.name}`}>
@@ -112,23 +112,19 @@ export function ExerciseAutocomplete({ value, onChange, onPick, placeholder = "E
                 type="button"
                 onClick={() => pick(s)}
                 onMouseEnter={() => setHighlighted(i)}
-                className={`w-full text-left px-4 py-2.5 flex items-center justify-between transition-colors ${
-                  i === highlighted ? "bg-brand-50 dark:bg-zinc-800" : ""
+                className={`flex w-full items-center justify-between border-b border-line-soft px-4 py-2.5 text-left transition-colors ${
+                  i === highlighted ? "bg-elevated" : ""
                 }`}
               >
                 <div className="min-w-0">
-                  <div className="font-semibold text-zinc-900 dark:text-white text-sm flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-sm font-bold">
                     {s.name}
-                    {s.source === "custom" && (
-                      <span className="text-[9px] uppercase tracking-wider font-bold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-500/15 px-1 py-0.5 rounded">
-                        Yours
-                      </span>
-                    )}
+                    {s.source === "custom" && <span className="tag text-violet">Yours</span>}
                   </div>
-                  <div className="text-xs text-zinc-500 truncate">{s.display}</div>
+                  <div className="truncate text-xs text-ink-2">{s.display}</div>
                 </div>
                 {s.equipment && (
-                  <span className="text-[10px] text-zinc-400 uppercase font-bold shrink-0 ml-2">{s.equipment}</span>
+                  <span className="label ml-2 shrink-0">{s.equipment}</span>
                 )}
               </button>
             </li>

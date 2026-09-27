@@ -1,119 +1,47 @@
 "use client";
 
-import { useMemo } from "react";
 import type { Workout } from "@/types/workout";
-import { startOfWeek } from "@/lib/utils";
-import { Flame } from "lucide-react";
+import type { TrainingWeek } from "@/lib/analytics/streak";
+import { daysAgo } from "@/lib/utils";
 
 interface Props {
-  name: string;
-  workouts: Workout[];
+  week: TrainingWeek;
+  /** Most recent workout, if any. */
+  last?: Workout;
 }
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 5) return "Late night";
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  if (h < 22) return "Good evening";
-  return "Late night";
-}
-
-export function Hero({ name, workouts }: Props) {
-  const { days, trainedThisWeek, currentDayStreak } = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const trainedSet = new Set(
-      workouts.map((w) => {
-        const d = new Date(w.date);
-        d.setHours(0, 0, 0, 0);
-        return d.getTime();
-      }),
-    );
-
-    const start = startOfWeek(new Date(today));
-    start.setHours(0, 0, 0, 0);
-
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      const isFuture = d.getTime() > today.getTime();
-      const isToday = d.getTime() === today.getTime();
-      return {
-        label: d.toLocaleDateString(undefined, { weekday: "narrow" }),
-        isTrained: trainedSet.has(d.getTime()),
-        isToday,
-        isFuture,
-      };
-    });
-
-    // consecutive trained days ending today (or yesterday if today is rest)
-    let streak = 0;
-    const cursor = new Date(today);
-    if (!trainedSet.has(cursor.getTime())) cursor.setDate(cursor.getDate() - 1);
-    while (trainedSet.has(cursor.getTime())) {
-      streak += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-
-    return {
-      days,
-      trainedThisWeek: days.filter((d) => d.isTrained).length,
-      currentDayStreak: streak,
-    };
-  }, [workouts]);
-
+/** Lime headline block: days trained this week, Monday → Sunday. */
+export function Hero({ week, last }: Props) {
+  const { days, trainedThisWeek } = week;
   return (
-    <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-black border border-zinc-800/60 shadow-xl p-5">
-      <div className="absolute -top-16 -right-16 w-48 h-48 bg-brand-600/40 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-16 -left-10 w-40 h-40 bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="relative z-10">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-semibold">
-          {greeting()}, {name}
+    <section className="plunk face-lime p-5" style={{ ["--d" as string]: "6px" }} aria-live="polite">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Days trained · this week</p>
+        <p className="num text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">
+          {Math.round((trainedThisWeek / 7) * 100)}% of week
         </p>
+      </div>
 
-        <div className="flex items-baseline gap-3 mt-3">
-          <span
-            className="text-5xl font-bold text-white leading-none"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {currentDayStreak}
-          </span>
-          <span className="text-sm text-zinc-400 font-semibold flex items-center gap-1">
-            {currentDayStreak > 0 && <Flame className="w-3.5 h-3.5 text-amber-400" />}
-            day{currentDayStreak === 1 ? "" : "s"} {currentDayStreak === 0 ? "off" : "streak"}
-          </span>
-        </div>
+      <p className="hero-num num mt-3 text-[88px]">
+        {trainedThisWeek}
+        <span className="ml-1 text-[40px] opacity-50">/7</span>
+      </p>
 
-        <div className="flex gap-1.5 mt-5">
-          {days.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-              <span
-                className={`text-[10px] font-bold uppercase ${
-                  d.isToday ? "text-white" : "text-zinc-500"
-                }`}
-              >
-                {d.label}
-              </span>
-              <div
-                className={`w-full h-2 rounded-full transition-colors ${
-                  d.isTrained
-                    ? "bg-emerald-500"
-                    : d.isFuture
-                      ? "bg-zinc-800/50"
-                      : d.isToday
-                        ? "bg-zinc-700 ring-1 ring-zinc-500"
-                        : "bg-zinc-800"
-                }`}
-              />
-            </div>
-          ))}
-        </div>
+      <p className="mt-2 truncate text-sm font-semibold opacity-80">
+        {last ? `Last session ${daysAgo(last.date).toLowerCase()} · ${last.name}` : "No sessions yet. Tap Log to start one."}
+      </p>
 
-        <p className="text-xs text-zinc-500 mt-4">
-          <span className="text-zinc-300 font-semibold">{trainedThisWeek}</span> of 7 days this week
-        </p>
+      <div className="mt-4 grid grid-cols-7 gap-1.5" role="img" aria-label={`Trained ${trainedThisWeek} of 7 days this week`}>
+        {days.map((d, i) => (
+          <div key={i} className="flex flex-col items-center gap-1.5">
+            <div
+              className={`h-2.5 w-full ${
+                d.isTrained ? "bg-[#0d0d0d]" : d.isToday ? "bg-black/15 ring-1 ring-inset ring-black/60" : d.isFuture ? "bg-black/[0.07]" : "bg-black/15"
+              }`}
+            />
+            <span className={`text-[10px] font-extrabold uppercase ${d.isToday ? "" : "opacity-60"}`}>{d.label}</span>
+          </div>
+        ))}
       </div>
     </section>
   );

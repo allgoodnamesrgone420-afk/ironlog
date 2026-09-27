@@ -32,9 +32,9 @@ export function Confirm({ trigger, title, message, confirmLabel = "Confirm", des
     <>
       {trigger(() => setOpen(true))}
       <Modal open={open} onClose={() => setOpen(false)} title={title}>
-        <div className="p-5 space-y-4">
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">{message}</p>
-          <div className="flex gap-2 justify-end">
+        <div className="space-y-5 px-5 pb-5 pt-2">
+          <p className="text-sm text-ink-2">{message}</p>
+          <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
               Cancel
             </Button>

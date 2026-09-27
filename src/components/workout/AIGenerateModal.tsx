@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2, Activity } from "lucide-react";
+import { Sparkles, Activity } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { callGemini } from "@/lib/ai/gemini-client";
@@ -70,30 +70,27 @@ export function AIGenerateModal({ open, onClose, recent, onApply }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title="AI workout builder">
-      <div className="p-5 space-y-4">
-        <div className="bg-brand-50 dark:bg-zinc-800 text-brand-700 dark:text-brand-400 text-xs p-3 rounded-lg flex gap-2 items-start">
-          <Activity className="w-4 h-4 mt-0.5 shrink-0" />
-          <p>Coach considers your last 10 sessions and applies progressive overload.</p>
-        </div>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={4}
-          placeholder="What's the goal? e.g. Push day, 45 min, focus on incline pressing"
-          className="w-full border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-violet-500 outline-none resize-none"
-        />
-        <Button
-          onClick={generate}
-          loading={busy}
-          disabled={!prompt.trim()}
-          className="w-full bg-violet-600 hover:bg-violet-700"
-          size="lg"
-        >
+      <div className="space-y-4 px-5 pb-5 pt-3">
+        <p className="flex items-start gap-2 border border-violet/60 bg-violet/10 p-2.5 text-xs">
+          <Activity className="mt-px h-4 w-4 shrink-0 text-violet" />
+          Coach considers your last 10 sessions and applies progressive overload.
+        </p>
+        <label className="field">
+          <span>What&apos;s the goal?</span>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={4}
+            placeholder="e.g. Push day, 45 min, focus on incline pressing"
+            className="resize-none"
+          />
+        </label>
+        <Button onClick={generate} loading={busy} disabled={!prompt.trim()} variant="violet" size="lg" block>
           {busy ? (
             "Designing…"
           ) : (
             <>
-              <Sparkles className="w-4 h-4" /> Generate
+              <Sparkles className="h-4 w-4" /> Generate
             </>
           )}
         </Button>

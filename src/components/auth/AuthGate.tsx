@@ -19,13 +19,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen p-4 max-w-md mx-auto space-y-4 pt-20">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
-        <div className="grid grid-cols-2 gap-3">
+      <div className="mx-auto min-h-screen max-w-[430px] space-y-4 px-5 pt-20">
+        <Skeleton className="h-44 w-full" />
+        <div className="grid grid-cols-3 gap-2">
+          <Skeleton className="h-24" />
           <Skeleton className="h-24" />
           <Skeleton className="h-24" />
         </div>
+        <Skeleton className="h-48 w-full" />
       </div>
     );
   }

@@ -69,50 +69,51 @@ export function MuscleBalance({ workouts }: { workouts: Workout[] }) {
   const totalSets = rows.reduce((a, r) => a + (counts[r.key] ?? 0), 0);
 
   return (
-    <section className="rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/60 p-5">
-      <div className="flex items-center justify-between mb-4">
+    <section className="plunk face-card p-4" style={{ ["--d" as string]: "4px" }}>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-bold text-zinc-900 dark:text-white text-sm">Muscle balance</h3>
-          <p className="text-xs text-zinc-500">Working sets this week</p>
+          <p className="label">Muscle balance</p>
+          <p className="text-xs text-ink-2">Working sets this week</p>
         </div>
         <div className="text-right">
-          <div className="text-xl font-bold text-zinc-900 dark:text-white leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
-            {Math.round(totalSets)}
-          </div>
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold mt-0.5">Total sets</div>
+          <p className="num text-2xl font-extrabold leading-none">{Math.round(totalSets)}</p>
+          <p className="label mt-1">Total sets</p>
         </div>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-zinc-500 italic text-center py-4">
-          Pick muscles to track in Settings → Tracked muscles.
-        </p>
+        <p className="py-4 text-center text-xs text-ink-3">Pick muscles to track in Settings → Tracked muscles.</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="mt-4 space-y-3">
           {rows.map((r) => {
             const value = Math.round(counts[r.key] ?? 0);
             const target = targets[r.key];
             const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
             const isOver = target > 0 && value >= target;
             return (
-              <li key={r.key} className="flex items-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.color }} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{r.label}</span>
-                    <span className="text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
-                      <span className={isOver ? "text-emerald-500 font-bold" : "text-zinc-700 dark:text-zinc-300 font-semibold"}>
-                        {value}
-                      </span>
-                      <span className="text-zinc-400 dark:text-zinc-600"> / {target}</span>
+              <li key={r.key}>
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 font-semibold">
+                    <span className="h-2.5 w-2.5 shrink-0" style={{ backgroundColor: r.color }} aria-hidden />
+                    <span className="truncate">{r.label}</span>
+                  </span>
+                  <span className="num shrink-0 text-xs">
+                    <span className={isOver ? "font-bold text-ok" : "font-semibold"}>
+                      {isOver && "✓ "}
+                      {value}
                     </span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, backgroundColor: r.color }}
-                    />
-                  </div>
+                    <span className="text-ink-3"> / {target}</span>
+                  </span>
+                </div>
+                <div
+                  className="mt-1 h-2 bg-elevated"
+                  role="progressbar"
+                  aria-label={`${r.label} sets`}
+                  aria-valuenow={value}
+                  aria-valuemin={0}
+                  aria-valuemax={target}
+                >
+                  <div className="bar-anim h-full" style={{ width: `${pct}%`, backgroundColor: r.color }} />
                 </div>
               </li>
             );

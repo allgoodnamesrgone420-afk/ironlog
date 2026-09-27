@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,7 @@ interface Props {
   className?: string;
 }
 
+/** Bottom sheet on phones, centered block with a hard shadow on desktop. */
 export function Modal({ open, onClose, title, children, className }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -24,38 +26,35 @@ export function Modal({ open, onClose, title, children, className }: Props) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
+  // Portaled to <body>: page sections animate in with a transform (.stagger),
+  // which would otherwise trap this fixed overlay inside that section.
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center lg:p-6" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="backdrop absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
       <div
-        onClick={(e) => e.stopPropagation()}
         className={cn(
-          "bg-white dark:bg-zinc-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-xl border border-zinc-100 dark:border-zinc-800 overflow-hidden animate-slide-up",
+          "sheet relative max-h-[88dvh] w-full max-w-[430px] overflow-y-auto border-t-4 border-lime bg-surface lg:max-w-[520px] lg:border-4 lg:shadow-[8px_8px_0_#000]",
           className,
         )}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {title !== undefined && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-            <h2 className="font-bold text-zinc-900 dark:text-white">{title}</h2>
+          <div className="flex items-start justify-between gap-3 px-5 pb-1 pt-5">
+            <h2 className="text-xl font-bold leading-tight">{title}</h2>
             <button
               onClick={onClose}
               aria-label="Close"
-              className="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="-mr-2 -mt-2 flex h-10 w-10 shrink-0 items-center justify-center text-ink-2 transition-colors hover:text-ink"
             >
-              <X className="w-5 h-5 text-zinc-500" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         )}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

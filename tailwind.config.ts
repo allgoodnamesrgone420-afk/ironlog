@@ -1,37 +1,34 @@
 import type { Config } from "tailwindcss";
 
+/** A theme token from globals.css, with Tailwind opacity-modifier support. */
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config: Config = {
   darkMode: "class",
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       fontFamily: {
-        sans: ["ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Inter", "sans-serif"],
+        sans: ["var(--font-sora)", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
       },
       colors: {
-        brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-        },
-      },
-      keyframes: {
-        "fade-in": { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
-        "slide-up": {
-          "0%": { transform: "translateY(10px)", opacity: "0" },
-          "100%": { transform: "translateY(0)", opacity: "1" },
-        },
-        "pulse-ring": {
-          "0%": { transform: "scale(1)", opacity: "0.6" },
-          "100%": { transform: "scale(1.6)", opacity: "0" },
-        },
-      },
-      animation: {
-        "fade-in": "fade-in 200ms ease-out",
-        "slide-up": "slide-up 250ms ease-out",
-        "pulse-ring": "pulse-ring 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        bg: token("bg"),
+        surface: token("surface"),
+        elevated: token("elevated"),
+        /** Input background: page black in dark, white in light. */
+        field: token("field-bg"),
+        line: { DEFAULT: token("line"), soft: token("line-soft") },
+        ink: { DEFAULT: token("ink"), 2: token("ink-2"), 3: token("ink-3") },
+        ok: token("ok"),
+        over: token("over"),
+        under: token("under"),
+        warn: token("warn"),
+        // DEFAULT keeps Tailwind's numbered shades for these names.
+        lime: { DEFAULT: token("lime") },
+        violet: { DEFAULT: token("violet") },
+        pink: { DEFAULT: token("pink") },
+        blue: { DEFAULT: token("blue") },
+        "on-accent": "#0d0d0d",
       },
     },
   },

@@ -40,3 +40,8 @@ export function startOfWeek(d = new Date()): Date {
   start.setHours(0, 0, 0, 0);
   return start;
 }
+
+/** Name for greetings: the display name, else the email's local part, capitalised. */
+export function friendlyName(user: { displayName?: string | null; email?: string | null } | null | undefined) {
+  return (user?.displayName || user?.email?.split("@")[0] || "Athlete").replace(/^./, (c) => c.toUpperCase());
+}

@@ -9,10 +9,12 @@ function fmt(sec: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+const btn = "flex h-9 w-9 items-center justify-center border border-line text-ink-2 transition-colors hover:text-ink";
+
 /**
  * Floating rest timer. Reads state from the global TimerProvider so it stays
  * alive when the user navigates between Log / Coach / Stats etc.
- * Rendered once in the (app) layout — not per-page.
+ * Rendered by the Log page; sits just above the phone dock.
  */
 export function RestTimer() {
   const { status, secondsLeft, totalDuration, pause, resume, cancel, addTime, start } = useTimer();
@@ -23,89 +25,63 @@ export function RestTimer() {
   const isDone = status === "done";
   const isPaused = status === "paused";
   const isRunning = status === "running";
+  const color = isDone ? "rgb(var(--ok))" : isPaused ? "rgb(var(--warn))" : "rgb(var(--lime))";
 
   return (
     <div
       role="timer"
       aria-live="polite"
-      className="fixed left-1/2 -translate-x-1/2 z-40 max-w-md w-[calc(100%-32px)] text-white rounded-2xl px-4 py-3 flex items-center gap-3 bg-zinc-900/60 backdrop-blur-2xl backdrop-saturate-150 border border-white/10 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.08)]"
-      style={{ bottom: "calc(env(safe-area-inset-bottom) + 90px)" }}
+      className="fixed inset-x-0 z-40 px-5 lg:left-60"
+      style={{ bottom: "calc(var(--dock-h) + 12px)" }}
     >
-      <div className="relative w-12 h-12 shrink-0">
-        <svg viewBox="0 0 36 36" className="-rotate-90 w-full h-full">
-          <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
-          <circle
-            cx="18"
-            cy="18"
-            r="15.5"
-            fill="none"
-            stroke={isDone ? "#22c55e" : isPaused ? "#f59e0b" : "#3b82f6"}
-            strokeWidth="3"
-            strokeDasharray={`${pct * 97.4} 97.4`}
-            strokeLinecap="round"
-            className="transition-all duration-300"
-          />
-        </svg>
-        <div
-          className="absolute inset-0 flex items-center justify-center text-xs font-bold"
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          {fmt(secondsLeft)}
+      <div className="mx-auto max-w-[390px] border border-line bg-elevated shadow-[4px_4px_0_#000]">
+        <div className="flex items-center gap-2.5 px-3 py-2.5">
+          <p className="num shrink-0 text-[28px] font-extrabold leading-none tracking-tight">{fmt(secondsLeft)}</p>
+          <div className="min-w-0 flex-1">
+            <p className="label flex items-center gap-1.5">
+              <span className="h-2 w-2 shrink-0" style={{ backgroundColor: color }} aria-hidden />
+              {isDone ? "Done" : isPaused ? "Paused" : "Rest"}
+            </p>
+            <p className="truncate text-xs font-semibold">
+              {isDone ? "Next set, let's go" : isPaused ? "Tap play to resume" : `${totalDuration}s default`}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button aria-label="Subtract 15 seconds" onClick={() => addTime(-15)} className={btn}>
+              <Minus className="h-4 w-4" />
+            </button>
+            <button aria-label="Add 15 seconds" onClick={() => addTime(15)} className={btn}>
+              <Plus className="h-4 w-4" />
+            </button>
+            {isDone ? (
+              <button
+                aria-label="Restart timer"
+                onClick={() => start(totalDuration || 60)}
+                className="flex h-9 w-9 items-center justify-center bg-ok text-on-accent"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            ) : isRunning ? (
+              <button aria-label="Pause" onClick={pause} className="flex h-9 w-9 items-center justify-center bg-lime text-on-accent">
+                <Pause className="h-4 w-4" />
+              </button>
+            ) : (
+              <button aria-label="Resume" onClick={resume} className="flex h-9 w-9 items-center justify-center bg-warn text-on-accent">
+                <Play className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              aria-label="Dismiss"
+              onClick={cancel}
+              className="flex h-9 w-7 items-center justify-center text-ink-3 transition-colors hover:text-over"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-xs text-zinc-400">{isDone ? "Done" : isPaused ? "Paused" : "Rest"}</div>
-        <div className="text-sm font-semibold truncate">
-          {isDone ? "Next set, let's go" : isPaused ? "Tap play to resume" : `${totalDuration}s default`}
+        <div className="h-1 bg-line-soft">
+          <div className="h-full transition-[width] duration-300" style={{ width: `${pct * 100}%`, backgroundColor: color }} />
         </div>
-      </div>
-      <div className="flex items-center gap-0.5">
-        <button
-          aria-label="Subtract 15 seconds"
-          onClick={() => addTime(-15)}
-          className="p-2 rounded-full hover:bg-zinc-800 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-        >
-          <Minus className="w-4 h-4" />
-        </button>
-        <button
-          aria-label="Add 15 seconds"
-          onClick={() => addTime(15)}
-          className="p-2 rounded-full hover:bg-zinc-800 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-        {isDone ? (
-          <button
-            aria-label="Restart timer"
-            onClick={() => start(totalDuration || 60)}
-            className="p-2 rounded-full bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-        ) : isRunning ? (
-          <button
-            aria-label="Pause"
-            onClick={pause}
-            className="p-2 rounded-full bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-          >
-            <Pause className="w-4 h-4" />
-          </button>
-        ) : (
-          <button
-            aria-label="Resume"
-            onClick={resume}
-            className="p-2 rounded-full bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-          >
-            <Play className="w-4 h-4" />
-          </button>
-        )}
-        <button
-          aria-label="Dismiss"
-          onClick={cancel}
-          className="p-2 rounded-full hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
-        >
-          <X className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

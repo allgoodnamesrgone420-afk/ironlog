@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import { Sora } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { UnitsProvider } from "@/providers/UnitsProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+
+// Self-hosted at build time by next/font (no runtime request to Google, CSP-safe).
+const sora = Sora({ variable: "--font-sora", subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "IronLog — Train smarter",
@@ -32,8 +36,8 @@ export const viewport: Viewport = {
   // content would render under the status bar / Dynamic Island and home bar.
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: light)", color: "#f3f0e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0d0d" },
   ],
 };
 
@@ -43,11 +47,11 @@ const themeInit = `(function(){try{var t=localStorage.getItem('ironlog:theme');v
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={sora.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
-      <body className="bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 font-sans antialiased">
+      <body className="font-sans antialiased">
         <ErrorBoundary>
           <ThemeProvider>
             <UnitsProvider>

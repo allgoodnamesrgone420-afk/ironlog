@@ -52,45 +52,50 @@ export default function BodyPage() {
     }));
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Body metrics</h1>
+    <div className="stagger mx-auto max-w-[640px] space-y-5">
+      <header style={{ ["--i" as string]: 0 }}>
+        <p className="label">Body</p>
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Body metrics</h1>
+      </header>
 
       <Card className="p-4">
-        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Log bodyweight</label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Weight in ${units}`}
-            className="flex-1 bg-zinc-50 dark:bg-zinc-800 rounded-xl px-4 py-3 text-base font-bold focus:ring-2 focus:ring-brand-500 outline-none"
-          />
-          <Button onClick={log} size="lg">
-            <Plus className="w-5 h-5" /> Add
+        <form
+          className="flex items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void log();
+          }}
+        >
+          <label className="field min-w-0 flex-1">
+            <span>Log bodyweight ({units})</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={`Weight in ${units}`}
+              className="num font-bold"
+            />
+          </label>
+          <Button type="submit" variant="lime" className="shrink-0">
+            <Plus className="h-5 w-5" /> Add
           </Button>
-        </div>
+        </form>
       </Card>
 
       {metrics.length > 0 ? (
-        <Card className="p-5">
-          <h3 className="font-bold text-zinc-800 dark:text-white mb-3">Trend ({units})</h3>
-          <MiniChart data={chart} color="#10b981" />
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+        <Card className="p-4">
+          <p className="label mb-3">Trend ({units})</p>
+          <MiniChart data={chart} />
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <Stat label="Latest" value={metrics[0]?.weightKg ? formatWeight(metrics[0].weightKg, units, 1) : "—"} />
-            <Stat
-              label="7-day Δ"
-              value={changeOver(metrics, 7, units)}
-            />
-            <Stat
-              label="30-day Δ"
-              value={changeOver(metrics, 30, units)}
-            />
+            <Stat label="7-day Δ" value={changeOver(metrics, 7, units)} />
+            <Stat label="30-day Δ" value={changeOver(metrics, 30, units)} />
           </div>
         </Card>
       ) : (
         <EmptyState
-          icon={<Scale className="w-6 h-6" />}
+          icon={<Scale className="h-6 w-6" />}
           title="No metrics yet"
           description="Log your bodyweight to see your trend."
         />
@@ -112,9 +117,9 @@ function changeOver(metrics: BodyMetric[], days: number, units: "kg" | "lb") {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-3">
-      <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">{label}</div>
-      <div className="font-bold text-zinc-900 dark:text-white mt-0.5">{value}</div>
+    <div className="card p-3">
+      <p className="label !text-[10px]">{label}</p>
+      <p className="num mt-0.5 font-extrabold">{value}</p>
     </div>
   );
 }

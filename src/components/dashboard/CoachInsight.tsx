@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Zap, Loader2 } from "lucide-react";
+import { Sparkles, Zap } from "lucide-react";
 import type { Workout } from "@/types/workout";
 import { callGemini } from "@/lib/ai/gemini-client";
 import { INSIGHT_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
 import { useToast } from "@/providers/ToastProvider";
+import { Button } from "@/components/ui/Button";
 
 export function CoachInsight({ workouts }: { workouts: Workout[] }) {
   const [tip, setTip] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export function CoachInsight({ workouts }: { workouts: Workout[] }) {
       const result = await callGemini<{ tip: string } | string>(prompt, INSIGHT_SYSTEM_PROMPT, { jsonMode: true });
       const text = typeof result === "object" && result && "tip" in result ? result.tip : String(result);
       setTip(text || "Consistency beats intensity. Show up.");
-    } catch (e) {
+    } catch {
       toast.error("Coach is offline — try again in a moment.");
       setTip("Consistency beats intensity. Show up.");
     } finally {
@@ -38,32 +39,26 @@ export function CoachInsight({ workouts }: { workouts: Workout[] }) {
   };
 
   return (
-    <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-4 opacity-10" aria-hidden>
-        <Sparkles size={100} />
-      </div>
-      <h2 className="font-bold flex items-center gap-2 relative z-10">
-        <Sparkles className="w-4 h-4 text-yellow-300" /> Coach&rsquo;s Insight
-      </h2>
-      <div className="mt-3 min-h-[60px] relative z-10">
-        {loading ? (
-          <div className="flex items-center gap-2 text-purple-200 animate-pulse">
-            <Loader2 className="w-4 h-4 animate-spin" /> Analyzing your last sessions…
-          </div>
-        ) : tip ? (
-          <p className="text-base font-medium leading-relaxed animate-fade-in">&ldquo;{tip}&rdquo;</p>
-        ) : (
-          <p className="text-purple-100 text-sm">Get personalized advice based on your recent training.</p>
-        )}
-      </div>
-      {!tip && !loading && (
-        <button
-          onClick={fetchTip}
-          className="mt-4 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white text-sm font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors min-h-[44px]"
-        >
-          <Zap className="w-4 h-4" /> Get insight
-        </button>
+    <section className="plunk face-violet p-5" style={{ ["--d" as string]: "5px" }} aria-live="polite">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">
+        <Sparkles className="h-3.5 w-3.5" /> Coach&rsquo;s insight
+      </p>
+      {loading ? (
+        <>
+          <p className="pulse mt-3 text-sm font-bold uppercase tracking-[0.1em]">Analyzing your last sessions…</p>
+          <div className="pulse mt-4 h-3 w-3/4 bg-black/20" />
+          <div className="pulse mt-2 h-3 w-1/2 bg-black/20" />
+        </>
+      ) : tip ? (
+        <p className="revealing mt-2 text-xl font-extrabold leading-snug">&ldquo;{tip}&rdquo;</p>
+      ) : (
+        <p className="mt-2 text-xl font-extrabold leading-tight">Get personalized advice based on your recent training.</p>
       )}
-    </div>
+      {!tip && !loading && (
+        <Button className="mt-4" onClick={fetchTip}>
+          <Zap className="h-4 w-4" /> Get insight
+        </Button>
+      )}
+    </section>
   );
 }

@@ -38,10 +38,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setEffective(resolve(initial));
   }, []);
 
-  // Apply class to <html>
+  // Apply class to <html>, and match the browser/status bar to the page background
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.classList.toggle("dark", effective === "dark");
+    document
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach((m) => m.setAttribute("content", effective === "dark" ? "#0d0d0d" : "#f3f0e8"));
   }, [effective]);
 
   // React to system pref changes if theme === "system"

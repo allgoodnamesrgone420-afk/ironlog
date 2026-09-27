@@ -21,7 +21,7 @@ function inline(text: string): ReactNode[] {
     const t = m[0];
     if (t.startsWith("**")) {
       out.push(
-        <strong key={key++} className="font-bold text-zinc-900 dark:text-white">
+        <strong key={key++} className="font-bold text-ink">
           {t.slice(2, -2)}
         </strong>,
       );
@@ -31,7 +31,7 @@ function inline(text: string): ReactNode[] {
       out.push(
         <code
           key={key++}
-          className="px-1 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700/60 text-[11px] font-mono"
+          className="bg-line-soft px-1 py-0.5 font-mono text-[12px]"
         >
           {t.slice(1, -1)}
         </code>,
@@ -66,7 +66,7 @@ export function Markdown({ text, className }: { text: string; className?: string
         i++;
       }
       blocks.push(
-        <ul key={key++} className="list-disc pl-5 my-2 space-y-1">
+        <ul key={key++} className="my-2 list-[square] space-y-1 pl-5 marker:text-violet">
           {items.map((it, idx) => (
             <li key={idx}>{inline(it)}</li>
           ))}
@@ -83,7 +83,7 @@ export function Markdown({ text, className }: { text: string; className?: string
         i++;
       }
       blocks.push(
-        <ol key={key++} className="list-decimal pl-5 my-2 space-y-1">
+        <ol key={key++} className="my-2 list-decimal space-y-1 pl-5 marker:font-bold marker:text-violet">
           {items.map((it, idx) => (
             <li key={idx}>{inline(it)}</li>
           ))}
@@ -102,7 +102,7 @@ export function Markdown({ text, className }: { text: string; className?: string
       blocks.push(
         <Tag
           key={key++}
-          className={`font-bold text-zinc-900 dark:text-white ${sizeClass} mt-3 first:mt-0`}
+          className={`font-extrabold tracking-tight text-ink ${sizeClass} mt-3 first:mt-0`}
         >
           {inline(content)}
         </Tag>,

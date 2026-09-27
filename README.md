@@ -30,6 +30,7 @@ A modern, secure rewrite of IronLog. Built with Next.js 15 (App Router), TypeScr
 - CSV + JSON export
 
 **UI/UX**
+- NeoPop ("CRED-style") design shared with the Bite calorie tracker: theme tokens, 3D "plunk" cards, pop buttons and boxed fields live in `src/app/globals.css`; phones get a top bar + bottom dock, desktop a sidebar
 - Persistent dark mode (localStorage + system pref)
 - iOS-safe FAB (`env(safe-area-inset-bottom)`)
 - `inputMode="decimal"` / `"numeric"` for proper mobile keyboards

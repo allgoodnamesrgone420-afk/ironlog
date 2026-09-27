@@ -30,15 +30,15 @@ export function PlateCalculator({ targetKg, barbellKg = 20 }: Props) {
   if (targetKg <= 0) return null;
 
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-800/60 rounded-lg p-3 text-xs">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-semibold text-zinc-700 dark:text-zinc-300">Plates / side</span>
-        <span className={achievable ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+    <div className="border border-line-soft bg-elevated/60 p-3 text-xs">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="label">Plates / side</span>
+        <span className={`num font-bold ${achievable ? "text-ok" : "text-warn"}`}>
           {achievable ? `${fromKg(actualKg, units).toFixed(1)} ${units}` : `≈ ${fromKg(actualKg, units).toFixed(1)} ${units}`}
         </span>
       </div>
       {perSide.length === 0 ? (
-        <div className="text-zinc-500">Bar only ({fromKg(barbellKg, units).toFixed(1)} {units})</div>
+        <div className="text-ink-2">Bar only ({fromKg(barbellKg, units).toFixed(1)} {units})</div>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {perSide.map((p) => {
@@ -46,11 +46,10 @@ export function PlateCalculator({ targetKg, barbellKg = 20 }: Props) {
             return Array.from({ length: p.count }).map((_, i) => (
               <span
                 key={`${p.weight}-${i}`}
-                className="px-2 py-1 rounded font-mono font-bold text-[11px] border"
+                className="num inline-flex min-w-[34px] items-center justify-center border border-black/25 px-1.5 py-1 text-[11px] font-extrabold"
                 style={{
                   backgroundColor: PLATE_COLORS[p.weight] ?? "#9ca3af",
                   color: p.weight === 5 ? "#000" : "#fff",
-                  borderColor: "rgba(0,0,0,0.1)",
                 }}
               >
                 {displayWeight % 1 === 0 ? displayWeight.toFixed(0) : displayWeight.toFixed(2)}

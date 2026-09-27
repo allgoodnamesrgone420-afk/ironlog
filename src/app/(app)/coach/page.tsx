@@ -93,87 +93,84 @@ ${history}`;
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] animate-fade-in -mt-4">
-      <div className="bg-gradient-to-r from-brand-600 to-indigo-600 p-4 rounded-b-2xl shadow-lg -mx-4">
-        <h2 className="text-white font-bold flex items-center gap-2">
-          <Bot className="w-5 h-5 text-blue-200" /> AI Coach
-        </h2>
-        <p className="text-blue-100 text-xs">Personalized to your data. Chat history is saved.</p>
-      </div>
+    <div className="mx-auto flex h-[calc(100dvh_-_var(--dock-h)_-_112px_-_env(safe-area-inset-top))] min-h-[440px] max-w-[640px] flex-col gap-4 lg:h-[calc(100dvh_-_80px)]">
+      <header className="shrink-0">
+        <p className="label">Coach</p>
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">AI Coach</h1>
+        <p className="text-sm text-ink-2">Personalized to your data. Chat history is saved.</p>
+      </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-3 no-scrollbar">
-        {messages.length === 0 && (
-          <div className="text-center text-sm text-zinc-500 dark:text-zinc-400 py-8">
-            <Bot className="w-10 h-10 mx-auto opacity-30 mb-2" />
-            <p>I have access to your {workouts.length} logged workouts.</p>
-            <p>Ask about progress, programming, or technique.</p>
-          </div>
-        )}
-        {messages.map((m) => (
-          <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${
-                m.role === "user"
-                  ? "bg-brand-600 text-white rounded-br-none whitespace-pre-wrap"
-                  : "bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-100 dark:border-zinc-700 rounded-bl-none shadow-sm"
-              }`}
-            >
-              {m.role === "user" ? m.text : <Markdown text={m.text} />}
+      <section className="plunk face-card flex min-h-0 flex-1 flex-col" style={{ ["--d" as string]: "5px" }} aria-label="Chat with your coach">
+        <div className="flex items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
+          <span
+            className="plunk face-violet inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.1em]"
+            style={{ ["--d" as string]: "2px" }}
+          >
+            <Bot className="h-3 w-3" /> AI coach
+          </span>
+          <span className="num text-[11px] font-semibold text-ink-3">
+            {workouts.length} workout{workouts.length === 1 ? "" : "s"} in context
+          </span>
+        </div>
+
+        <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
+          {messages.length === 0 && (
+            <div className="space-y-1 py-2">
+              <p className="font-bold">I have access to your {workouts.length} logged workouts.</p>
+              <p className="text-sm text-ink-2">Ask about progress, programming, or technique.</p>
             </div>
-          </div>
-        ))}
-        {typing && (
-          <div className="flex justify-start">
-            <div className="bg-white dark:bg-zinc-800 p-3 rounded-2xl rounded-bl-none border border-zinc-100 dark:border-zinc-700 shadow-sm flex gap-1">
-              {[0, 150, 300].map((d) => (
-                <span
-                  key={d}
-                  className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce"
-                  style={{ animationDelay: `${d}ms` }}
-                />
+          )}
+          {messages.map((m) =>
+            m.role === "user" ? (
+              <div key={m.id} className="flex justify-end">
+                <p className="max-w-[85%] whitespace-pre-wrap bg-lime px-3 py-2 text-sm font-medium text-on-accent">{m.text}</p>
+              </div>
+            ) : (
+              <div key={m.id} className="max-w-[92%] border-l-4 border-l-violet bg-elevated px-3 py-2 text-[15px] leading-relaxed">
+                <Markdown text={m.text} />
+              </div>
+            ),
+          )}
+          {typing && (
+            <div className="max-w-[60%] border-l-4 border-l-violet bg-elevated px-3 py-3" aria-label="Coach is typing">
+              <div className="pulse h-2 w-24 bg-ink-3/40" />
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2 border-t border-line-soft p-3">
+          {messages.length < 2 && (
+            <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-1" role="group" aria-label="Suggestions">
+              {suggestions.map((s) => (
+                <button key={s} onClick={() => send(s)} className="chip min-h-8 shrink-0 text-xs">
+                  {s}
+                </button>
               ))}
             </div>
-          </div>
-        )}
-      </div>
-
-      <div className="mt-auto pb-2">
-        {messages.length < 2 && (
-          <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                onClick={() => send(s)}
-                className="whitespace-nowrap bg-brand-50 dark:bg-zinc-800 text-brand-700 dark:text-brand-400 text-xs px-3 py-2 rounded-full border border-brand-100 dark:border-zinc-700 hover:bg-brand-100 dark:hover:bg-zinc-700 transition-colors min-h-[36px]"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="bg-white dark:bg-zinc-900 p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-2 shadow-sm">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
+          )}
+          <form
+            className="flex items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              send();
             }}
-            placeholder="Ask your coach…"
-            className="flex-1 bg-transparent px-2 py-2 text-sm outline-none text-zinc-800 dark:text-white placeholder-zinc-400"
-          />
-          <button
-            onClick={() => send()}
-            disabled={!input.trim() || typing}
-            aria-label="Send"
-            className="p-2.5 min-w-[44px] min-h-[44px] bg-brand-600 rounded-lg text-white hover:bg-brand-700 disabled:opacity-50 transition-colors flex items-center justify-center"
           >
-            <Send className="w-4 h-4" />
-          </button>
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Message your coach</span>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask your coach…"
+                enterKeyHint="send"
+                className="box-input mb-1 h-12 px-3"
+              />
+            </label>
+            <button type="submit" disabled={!input.trim() || typing} aria-label="Send" className="pop-btn lime w-12 px-0">
+              <Send className="h-4 w-4" />
+            </button>
+          </form>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

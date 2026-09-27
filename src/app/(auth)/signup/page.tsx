@@ -4,9 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
-import { Mail, Lock, AlertCircle } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
-import { AuthShell, Field } from "@/components/auth/AuthShell";
+import { AuthShell, Field, FormError } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { upsertProfile } from "@/lib/firebase/repository";
 
@@ -51,11 +50,10 @@ export default function SignupPage() {
 
   return (
     <AuthShell subtitle="Start logging in under 60 seconds.">
-      <h2 className="font-bold text-zinc-900 dark:text-white mb-6">Create account</h2>
-      <form onSubmit={submit} className="space-y-4">
+      <h2 className="label mb-3">Create account</h2>
+      <form onSubmit={submit} className="space-y-3">
         <Field
           label="Email"
-          icon={<Mail className="w-5 h-5" />}
           type="email"
           value={email}
           onChange={setEmail}
@@ -65,7 +63,6 @@ export default function SignupPage() {
         />
         <Field
           label="Password"
-          icon={<Lock className="w-5 h-5" />}
           type="password"
           value={password}
           onChange={setPassword}
@@ -74,19 +71,14 @@ export default function SignupPage() {
           required
           minLength={8}
         />
-        {error && (
-          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-medium flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-        <Button type="submit" loading={loading} size="lg" className="w-full">
+        {error && <FormError>{error}</FormError>}
+        <Button type="submit" loading={loading} variant="lime" size="lg" block className="!mt-5">
           Create account
         </Button>
       </form>
-      <p className="text-xs text-zinc-500 mt-5 text-center">
+      <p className="mt-6 text-center text-sm text-ink-2">
         Already have an account?{" "}
-        <Link href="/login" className="text-brand-600 hover:underline">
+        <Link href="/login" className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4">
           Sign in
         </Link>
       </p>
