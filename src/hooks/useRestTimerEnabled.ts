@@ -1,32 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-const KEY = "ironlog:restTimerEnabled";
+import { REST_TIMER_SETTING, useSetting } from "@/lib/settings";
 
 /** Whether the rest timer should auto-start on set completion. Default: on. */
 export function useRestTimerEnabled() {
-  const [enabled, setEnabledState] = useState(true);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw !== null) setEnabledState(raw === "true");
-    } catch {
-      /* corrupt */
-    }
-    setHydrated(true);
-  }, []);
-
-  const setEnabled = (v: boolean) => {
-    setEnabledState(v);
-    try {
-      localStorage.setItem(KEY, String(v));
-    } catch {
-      /* quota */
-    }
-  };
-
-  return { enabled, setEnabled, hydrated };
+  const [enabled, setEnabled] = useSetting(REST_TIMER_SETTING);
+  return { enabled, setEnabled: (v: boolean) => setEnabled(v) };
 }

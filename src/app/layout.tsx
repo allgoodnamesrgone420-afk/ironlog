@@ -29,8 +29,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Pinch-zoom stays enabled (accessibility); inputs are 16px+ so iOS doesn't auto-zoom on focus.
+
   // Required so iOS exposes env(safe-area-inset-*) to CSS — the TopBar and
   // BottomNav already pad with those insets, but they read 0 without this, so
   // content would render under the status bar / Dynamic Island and home bar.

@@ -4,7 +4,7 @@ import type { Workout } from "@/types/workout";
 import { useMemo } from "react";
 import { startOfWeek } from "@/lib/utils";
 import { workoutSetCount } from "@/lib/analytics/volume";
-import { computePRs } from "@/lib/analytics/personal-records";
+import { countPRsSince } from "@/lib/analytics/personal-records";
 
 interface Props {
   workouts: Workout[];
@@ -16,7 +16,7 @@ export function StatStrip({ workouts, streak }: Props) {
     const start = startOfWeek();
     const thisWeek = workouts.filter((w) => w.date >= start);
     const sets = thisWeek.reduce((a, w) => a + workoutSetCount(w), 0);
-    const prs = computePRs(thisWeek).length;
+    const prs = countPRsSince(workouts, start);
     return { sessions: thisWeek.length, sets, prs };
   }, [workouts]);
 

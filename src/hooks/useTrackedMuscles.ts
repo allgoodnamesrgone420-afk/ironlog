@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { DisplayMuscle } from "./useMuscleTargets";
+import { readSetting, useSetting, type SettingDef } from "@/lib/settings";
+import { DEFAULT_TARGETS, type DisplayMuscle } from "./useMuscleTargets";
 
 /** Which muscles appear on the dashboard balance. Default: the classic 7. */
 export const DEFAULT_TRACKED: DisplayMuscle[] = [
@@ -14,47 +14,30 @@ export const DEFAULT_TRACKED: DisplayMuscle[] = [
   "core",
 ];
 
-const KEY = "ironlog:trackedMuscles";
+/** Keeps known muscle names only, without duplicates, in their original order. */
+export function normalizeTracked(value: unknown): DisplayMuscle[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const known = new Set(Object.keys(DEFAULT_TARGETS));
+  return [...new Set(value)].filter((m): m is DisplayMuscle => typeof m === "string" && known.has(m));
+}
 
+export const TRACKED_SETTING: SettingDef<DisplayMuscle[]> = {
+  key: "ironlog:trackedMuscles",
+  fallback: DEFAULT_TRACKED,
+  parse: (raw) => normalizeTracked(JSON.parse(raw)),
+  serialize: (v) => JSON.stringify(v),
+};
+
+/** Shared by every caller, so the Settings editors and the dashboard stay in step. */
 export function useTrackedMuscles() {
-  const [tracked, setTracked] = useState<DisplayMuscle[]>(DEFAULT_TRACKED);
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setTracked(parsed.filter((m): m is DisplayMuscle => typeof m === "string"));
-      }
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
-  }, []);
-
-  const persist = (next: DisplayMuscle[]) => {
-    setTracked(next);
-    try {
-      localStorage.setItem(KEY, JSON.stringify(next));
-    } catch {
-      /* quota */
-    }
-  };
+  const [tracked, write] = useSetting(TRACKED_SETTING);
 
   const toggle = (m: DisplayMuscle) => {
-    const next = tracked.includes(m) ? tracked.filter((x) => x !== m) : [...tracked, m];
-    persist(next);
+    const current = readSetting(TRACKED_SETTING);
+    write(current.includes(m) ? current.filter((x) => x !== m) : [...current, m]);
   };
 
-  const reset = () => {
-    persist(DEFAULT_TRACKED);
-    try {
-      localStorage.removeItem(KEY);
-    } catch {
-      /* noop */
-    }
-  };
+  const reset = () => write(null);
 
-  return { tracked, toggle, reset, hydrated };
+  return { tracked, toggle, reset };
 }

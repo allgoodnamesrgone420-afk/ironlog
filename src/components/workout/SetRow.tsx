@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import type { WorkoutSet } from "@/types/workout";
 import { useUnits } from "@/providers/UnitsProvider";
-import { fromKg, toKg } from "@/lib/units/converter";
+import { displayWeight, fromKg, toKg } from "@/lib/units/converter";
 
 interface Props {
   index: number;
@@ -33,15 +33,16 @@ function NumberField({
   placeholder?: string;
   className?: string;
 }) {
-  const formatExternal = (v: number) => (v > 0 ? (Number.isInteger(v) ? v.toString() : v.toString()) : "");
+  // Round for display: pounds are stored as kg, so 31 lb comes back as 30.999999999999996.
+  const formatExternal = (v: number) => (v > 0 ? String(Math.round(v * 100) / 100) : "");
   const [text, setText] = useState<string>(formatExternal(externalValue));
   const lastEmittedRef = useRef<number>(externalValue);
 
-  // Sync from external changes (suggestion fill, voice, undo).
+  // Sync from external changes (suggestion fill, unit switch, undo).
   // Skip when the external value matches what the user's text would parse to —
-  // that means we're seeing our own emit echo back.
+  // that means we're seeing our own emit echo back (allowing for kg↔lb float noise).
   useEffect(() => {
-    if (externalValue === lastEmittedRef.current) return;
+    if (Math.abs(externalValue - lastEmittedRef.current) < 1e-6) return;
     setText(formatExternal(externalValue));
     lastEmittedRef.current = externalValue;
   }, [externalValue]);
@@ -94,7 +95,7 @@ export function SetRow({ index, set, suggestion, canDelete, onChange, onDelete, 
         externalValue={displayKg}
         onValue={(v) => onChange({ kg: toKg(v, units) })}
         decimal
-        placeholder={showSuggestion ? `${fromKg(suggestion!.kg, units).toFixed(1)}` : units}
+        placeholder={showSuggestion ? String(displayWeight(suggestion!.kg, units, 1)) : units}
         className={input}
       />
 

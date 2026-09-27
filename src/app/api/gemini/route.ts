@@ -111,9 +111,10 @@ async function handlePost(req: Request): Promise<NextResponse> {
   // 6. Call Gemini
   let modelRes: Response;
   try {
-    modelRes = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+    // Key in a header rather than the URL, so it can't end up in request logs.
+    modelRes = await fetch(GEMINI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         systemInstruction: { parts: [{ text: systemInstruction }] },

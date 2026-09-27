@@ -10,9 +10,11 @@ export function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+/** Relative day label by calendar day, so last night's session is "Yesterday", not "Today". */
 export function daysAgo(date: Date) {
-  const diffMs = Date.now() - date.getTime();
-  const days = Math.floor(diffMs / 86_400_000);
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  // Round rather than floor: DST days are 23 or 25 hours long.
+  const days = Math.round((midnight(new Date()) - midnight(date)) / 86_400_000);
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   if (days < 7) return `${days}d ago`;

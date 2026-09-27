@@ -1,4 +1,4 @@
-import type { Workout } from "@/types/workout";
+import type { Workout, WorkoutSet } from "@/types/workout";
 import { estimate1RM } from "./onerm";
 
 export interface PRRow {
@@ -11,12 +11,30 @@ export interface PRRow {
   deltaKg?: number;
 }
 
+type Entry = { kg: number; reps: number; date: Date };
+
+/** Heavier wins; at the same weight, more reps wins. */
+function beats(a: { kg: number; reps: number }, b: { kg: number; reps: number } | null | undefined): boolean {
+  return !b || a.kg > b.kg || (a.kg === b.kg && a.reps > b.reps);
+}
+
+/** Best completed, loaded set of one exercise in one workout. */
+function bestSet(sets: WorkoutSet[] | undefined, date: Date): Entry | null {
+  let best: Entry | null = null;
+  for (const s of sets ?? []) {
+    if (!s.completed) continue;
+    if (!Number.isFinite(s.kg) || !Number.isFinite(s.reps)) continue;
+    if (s.kg <= 0) continue;
+    if (beats(s, best)) best = { kg: s.kg, reps: s.reps, date };
+  }
+  return best;
+}
+
 /**
  * Computes, for each exercise name, the best top-set ever (highest weight,
  * tiebreak on reps) along with the prior PR delta so we can show progression.
  */
 export function computePRs(workouts: Workout[]): PRRow[] {
-  type Entry = { kg: number; reps: number; date: Date };
   const history: Record<string, Entry[]> = {};
 
   // Sort oldest first so deltas can be computed
@@ -26,15 +44,7 @@ export function computePRs(workouts: Workout[]): PRRow[] {
     for (const ex of w.exercises ?? []) {
       const name = ex.name?.trim();
       if (!name) continue;
-      let best: Entry | null = null;
-      for (const s of ex.sets ?? []) {
-        if (!s.completed) continue;
-        if (!Number.isFinite(s.kg) || !Number.isFinite(s.reps)) continue;
-        if (s.kg <= 0) continue;
-        if (!best || s.kg > best.kg || (s.kg === best.kg && s.reps > best.reps)) {
-          best = { kg: s.kg, reps: s.reps, date: w.date };
-        }
-      }
+      const best = bestSet(ex.sets, w.date);
       if (best) (history[name] ??= []).push(best);
     }
   }
@@ -44,7 +54,7 @@ export function computePRs(workouts: Workout[]): PRRow[] {
     let bestSoFar: Entry | null = null;
     let prevPR: Entry | null = null;
     for (const e of entries) {
-      if (!bestSoFar || e.kg > bestSoFar.kg || (e.kg === bestSoFar.kg && e.reps > bestSoFar.reps)) {
+      if (beats(e, bestSoFar)) {
         prevPR = bestSoFar;
         bestSoFar = e;
       }
@@ -85,4 +95,28 @@ export function lastSessionFor(workouts: Workout[], exerciseName: string): { kg:
     }
   }
   return null;
+}
+
+/**
+ * Personal records set since `since`: exercises whose best set in that window
+ * beats every set logged before it. First-ever attempts don't count.
+ */
+export function countPRsSince(workouts: Workout[], since: Date): number {
+  const before = new Map<string, Entry>();
+  const after = new Map<string, Entry>();
+  for (const w of workouts) {
+    const bucket = w.date >= since ? after : before;
+    for (const ex of w.exercises ?? []) {
+      const name = ex.name?.trim();
+      if (!name) continue;
+      const best = bestSet(ex.sets, w.date);
+      if (best && beats(best, bucket.get(name))) bucket.set(name, best);
+    }
+  }
+  let count = 0;
+  for (const [name, best] of after) {
+    const previous = before.get(name);
+    if (previous && beats(best, previous)) count++;
+  }
+  return count;
 }

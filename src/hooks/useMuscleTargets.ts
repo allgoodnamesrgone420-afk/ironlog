@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { readSetting, useSetting, type SettingDef } from "@/lib/settings";
 
 /** All muscles a user can track on the dashboard. "legs" is an aggregate of quads+hams+glutes+calves. */
 export type DisplayMuscle =
@@ -36,45 +36,35 @@ export const DEFAULT_TARGETS: MuscleTargets = {
   cardio: 3,
 };
 
-const KEY = "ironlog:muscleTargets";
+const clampTarget = (n: number) => Math.max(0, Math.min(50, Math.round(n)));
+
+/** Fills missing muscles with defaults and drops anything invalid. */
+export function normalizeTargets(value: unknown): MuscleTargets {
+  const out = { ...DEFAULT_TARGETS };
+  if (value && typeof value === "object") {
+    for (const k of Object.keys(DEFAULT_TARGETS) as DisplayMuscle[]) {
+      const n = (value as Record<string, unknown>)[k];
+      if (typeof n === "number" && Number.isFinite(n)) out[k] = clampTarget(n);
+    }
+  }
+  return out;
+}
+
+export const TARGETS_SETTING: SettingDef<MuscleTargets> = {
+  key: "ironlog:muscleTargets",
+  fallback: DEFAULT_TARGETS,
+  parse: (raw) => normalizeTargets(JSON.parse(raw)),
+  serialize: (v) => JSON.stringify(v),
+};
 
 export function useMuscleTargets() {
-  const [targets, setTargets] = useState<MuscleTargets>(DEFAULT_TARGETS);
-  const [hydrated, setHydrated] = useState(false);
+  const [targets, write] = useSetting(TARGETS_SETTING);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<MuscleTargets>;
-        setTargets({ ...DEFAULT_TARGETS, ...parsed });
-      }
-    } catch {
-      // ignore corrupt value
-    }
-    setHydrated(true);
-  }, []);
+  // Read the latest stored value so quick repeated taps don't overwrite each other.
+  const set = (muscle: DisplayMuscle, value: number) =>
+    write({ ...readSetting(TARGETS_SETTING), [muscle]: clampTarget(value) });
 
-  const set = (muscle: DisplayMuscle, value: number) => {
-    setTargets((prev) => {
-      const next = { ...prev, [muscle]: Math.max(0, Math.min(50, Math.round(value))) };
-      try {
-        localStorage.setItem(KEY, JSON.stringify(next));
-      } catch {
-        /* quota */
-      }
-      return next;
-    });
-  };
+  const reset = () => write(null);
 
-  const reset = () => {
-    setTargets(DEFAULT_TARGETS);
-    try {
-      localStorage.removeItem(KEY);
-    } catch {
-      /* noop */
-    }
-  };
-
-  return { targets, set, reset, hydrated };
+  return { targets, set, reset };
 }

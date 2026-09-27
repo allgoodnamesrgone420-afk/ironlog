@@ -21,6 +21,27 @@ import type { CoachMessage } from "@/types/ai";
 import type { UserProfile } from "@/types/user";
 import type { Program, ProgramCursor } from "@/types/program";
 
+/**
+ * Firestore applies a write to the local cache straight away but only resolves
+ * it once the server confirms, which never happens while offline, so awaiting
+ * it left buttons spinning forever. Wait briefly for the confirmation, then
+ * treat the write as queued: it syncs by itself when the connection returns.
+ * Errors that arrive in time (e.g. security rules) still reject.
+ */
+export async function confirmOrQueue(write: Promise<unknown>, waitMs = 4000): Promise<"saved" | "queued"> {
+  write.catch(() => {}); // a late failure has no one to report to; avoid an unhandled rejection
+  if (typeof navigator !== "undefined" && !navigator.onLine) return "queued";
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const queued = new Promise<"queued">((resolve) => {
+    timer = setTimeout(() => resolve("queued"), waitMs);
+  });
+  try {
+    return await Promise.race([write.then(() => "saved" as const), queued]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Workouts ────────────────────────────────────────────────────────
 function workoutsCol(uid: string) {
   return collection(db, "users", uid, "workouts");
@@ -49,19 +70,21 @@ export function subscribeToWorkouts(uid: string, cb: (workouts: Workout[]) => vo
 }
 
 export async function saveWorkout(uid: string, workout: Omit<Workout, "id" | "date"> & { date?: Date }) {
-  return addDoc(workoutsCol(uid), {
-    name: workout.name,
-    exercises: workout.exercises,
-    totalVolume: workout.totalVolume,
-    durationSec: workout.durationSec ?? null,
-    notes: workout.notes ?? null,
-    programRef: workout.programRef ?? null,
-    date: workout.date ? Timestamp.fromDate(workout.date) : serverTimestamp(),
-  });
+  return confirmOrQueue(
+    addDoc(workoutsCol(uid), {
+      name: workout.name,
+      exercises: workout.exercises,
+      totalVolume: workout.totalVolume,
+      durationSec: workout.durationSec ?? null,
+      notes: workout.notes ?? null,
+      programRef: workout.programRef ?? null,
+      date: workout.date ? Timestamp.fromDate(workout.date) : serverTimestamp(),
+    }),
+  );
 }
 
 export async function deleteWorkout(uid: string, workoutId: string) {
-  return deleteDoc(doc(db, "users", uid, "workouts", workoutId));
+  return confirmOrQueue(deleteDoc(doc(db, "users", uid, "workouts", workoutId)));
 }
 
 // ─── Custom exercises (user's personal library) ──────────────────────
@@ -182,10 +205,12 @@ export function subscribeToBodyMetrics(uid: string, cb: (m: BodyMetric[]) => voi
 }
 
 export async function addBodyMetric(uid: string, metric: Omit<BodyMetric, "id">) {
-  return addDoc(bodyMetricsCol(uid), {
-    ...metric,
-    date: Timestamp.fromDate(metric.date),
-  });
+  return confirmOrQueue(
+    addDoc(bodyMetricsCol(uid), {
+      ...metric,
+      date: Timestamp.fromDate(metric.date),
+    }),
+  );
 }
 
 // ─── Coach chat ──────────────────────────────────────────────────────
@@ -212,7 +237,7 @@ export function subscribeToCoachMessages(uid: string, cb: (msgs: CoachMessage[])
 }
 
 export async function appendCoachMessage(uid: string, role: "user" | "model", text: string) {
-  return addDoc(coachCol(uid), { role, text, createdAt: serverTimestamp() });
+  return confirmOrQueue(addDoc(coachCol(uid), { role, text, createdAt: serverTimestamp() }));
 }
 
 // ─── User profile (units, theme, weekly goal) ────────────────────────
@@ -260,23 +285,25 @@ export async function saveProgram(
   uid: string,
   program: Omit<Program, "id" | "createdAt">,
 ) {
-  return addDoc(programsCol(uid), {
-    name: program.name,
-    description: program.description ?? null,
-    weeks: program.weeks,
-    trainingMaxes: program.trainingMaxes ?? {},
-    active: program.active ?? false,
-    cursor: program.cursor ?? { week: 0, day: 0 },
-    createdAt: serverTimestamp(),
-  });
+  return confirmOrQueue(
+    addDoc(programsCol(uid), {
+      name: program.name,
+      description: program.description ?? null,
+      weeks: program.weeks,
+      trainingMaxes: program.trainingMaxes ?? {},
+      active: program.active ?? false,
+      cursor: program.cursor ?? { week: 0, day: 0 },
+      createdAt: serverTimestamp(),
+    }),
+  );
 }
 
 export async function updateProgram(uid: string, id: string, patch: Partial<Program>) {
-  return updateDoc(doc(programsCol(uid), id), patch as Record<string, unknown>);
+  return confirmOrQueue(updateDoc(doc(programsCol(uid), id), patch as Record<string, unknown>));
 }
 
 export async function deleteProgram(uid: string, id: string) {
-  return deleteDoc(doc(programsCol(uid), id));
+  return confirmOrQueue(deleteDoc(doc(programsCol(uid), id)));
 }
 
 /** Make exactly one program active; all others are flipped inactive in a batch. */
@@ -285,9 +312,9 @@ export async function setActiveProgram(uid: string, id: string, allIds: string[]
   for (const pid of allIds) {
     batch.update(doc(programsCol(uid), pid), { active: pid === id });
   }
-  return batch.commit();
+  return confirmOrQueue(batch.commit());
 }
 
 export async function advanceProgramCursor(uid: string, id: string, cursor: ProgramCursor) {
-  return updateDoc(doc(programsCol(uid), id), { cursor });
+  return confirmOrQueue(updateDoc(doc(programsCol(uid), id), { cursor }));
 }

@@ -187,53 +187,74 @@ function ProgramRow({
   const cursor = clampCursor(program, program.cursor);
   const needsTM = missingTrainingMaxes(program);
   const tmLifts = Object.keys(program.trainingMaxes ?? {});
+  const cancelRename = () => {
+    setNameDraft(program.name);
+    setEditingName(false);
+  };
 
   return (
     <Card>
       <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <button onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 text-left">
-            {isActive && (
-              <span className="tag solid mb-1.5 bg-lime text-on-accent">
-                <Star className="h-3 w-3" fill="currentColor" /> Active
+        {editingName ? (
+          <form
+            className="flex items-center gap-1.5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await onRename(nameDraft);
+              setEditingName(false);
+            }}
+          >
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && cancelRename()}
+              maxLength={60}
+              autoFocus
+              aria-label="Program name"
+              className="box-input min-w-0 flex-1 px-3 text-lg font-extrabold tracking-tight"
+            />
+            <button type="submit" aria-label="Save name" className="flex h-11 w-11 shrink-0 items-center justify-center bg-lime text-on-accent">
+              <Check className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={cancelRename} aria-label="Cancel rename" className="flex h-11 w-9 shrink-0 items-center justify-center text-ink-3 hover:text-ink">
+              <X className="h-4 w-4" />
+            </button>
+          </form>
+        ) : (
+          // The name block and the pencil are sibling buttons: a button can't contain other controls.
+          <div className="flex items-start gap-1">
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
+            >
+              <span className="min-w-0">
+                {isActive && (
+                  <span className="tag solid mb-1.5 bg-lime text-on-accent">
+                    <Star className="h-3 w-3" fill="currentColor" /> Active
+                  </span>
+                )}
+                <span className="block truncate text-lg font-extrabold tracking-tight">{program.name}</span>
+                <span className="num block text-xs text-ink-2">
+                  {program.weeks.length} week{program.weeks.length !== 1 && "s"} ·{" "}
+                  {program.weeks.reduce((n, w) => n + w.days.length, 0)} days · up to{" "}
+                  {program.weeks[cursor.week]?.label ?? `Week ${cursor.week + 1}`} /{" "}
+                  {program.weeks[cursor.week]?.days[cursor.day]?.label ?? "—"}
+                </span>
               </span>
-            )}
-            {editingName ? (
-              <span className="mt-0.5 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <input
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  maxLength={60}
-                  className="min-w-0 border-b-2 border-lime bg-transparent text-lg font-extrabold tracking-tight focus:outline-none"
-                />
-                <button onClick={async () => { await onRename(nameDraft); setEditingName(false); }} aria-label="Save name">
-                  <Check className="h-4 w-4 text-ok" />
-                </button>
-                <button onClick={() => { setNameDraft(program.name); setEditingName(false); }} aria-label="Cancel">
-                  <X className="h-4 w-4 text-ink-3" />
-                </button>
-              </span>
-            ) : (
-              <h3 className="flex items-center gap-1.5 truncate text-lg font-extrabold tracking-tight">
-                {program.name}
-                <Pencil
-                  className="h-3.5 w-3.5 shrink-0 text-ink-3"
-                  onClick={(e) => { e.stopPropagation(); setEditingName(true); }}
-                />
-              </h3>
-            )}
-            <p className="num text-xs text-ink-2">
-              {program.weeks.length} week{program.weeks.length !== 1 && "s"} ·{" "}
-              {program.weeks.reduce((n, w) => n + w.days.length, 0)} days · up to{" "}
-              {program.weeks[cursor.week]?.label ?? `Week ${cursor.week + 1}`} /{" "}
-              {program.weeks[cursor.week]?.days[cursor.day]?.label ?? "—"}
-            </p>
-          </button>
-          <ChevronDown
-            className={`h-5 w-5 shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`}
-            onClick={() => setOpen((o) => !o)}
-          />
-        </div>
+              <ChevronDown className={`mt-1 h-5 w-5 shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingName(true)}
+              aria-label="Rename program"
+              className="flex h-8 w-8 shrink-0 items-center justify-center text-ink-3 transition-colors hover:text-ink"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!isActive && (

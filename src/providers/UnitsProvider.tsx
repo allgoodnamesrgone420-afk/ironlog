@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import type { Units } from "@/types/user";
+import { UNITS_SETTING, useSetting } from "@/lib/settings";
 
 interface UnitsState {
   units: Units;
@@ -9,21 +10,9 @@ interface UnitsState {
 }
 
 const UnitsCtx = createContext<UnitsState>({ units: "kg", setUnits: () => {} });
-const STORAGE_KEY = "ironlog:units";
 
 export function UnitsProvider({ children }: { children: ReactNode }) {
-  const [units, setUnitsState] = useState<Units>("kg");
-
-  useEffect(() => {
-    const stored = typeof window !== "undefined" && (localStorage.getItem(STORAGE_KEY) as Units | null);
-    if (stored === "kg" || stored === "lb") setUnitsState(stored);
-  }, []);
-
-  const setUnits = (u: Units) => {
-    setUnitsState(u);
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, u);
-  };
-
+  const [units, setUnits] = useSetting(UNITS_SETTING);
   return <UnitsCtx.Provider value={{ units, setUnits }}>{children}</UnitsCtx.Provider>;
 }
 

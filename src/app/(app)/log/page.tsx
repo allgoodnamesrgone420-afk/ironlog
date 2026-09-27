@@ -21,6 +21,8 @@ import { lastSessionFor } from "@/lib/analytics/personal-records";
 import { findExercise } from "@/lib/data/exercises";
 import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { uid } from "@/lib/utils";
+import { displayWeight, roundToPlate } from "@/lib/units/converter";
+import type { Units } from "@/types/user";
 import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import type { ProgramRef } from "@/types/program";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +33,7 @@ import { ExerciseAutocomplete } from "@/components/workout/ExerciseAutocomplete"
 import { PlateCalculator } from "@/components/workout/PlateCalculator";
 import { useTimer } from "@/providers/TimerProvider";
 import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
+import { useBarbellKg } from "@/hooks/useBarbellKg";
 import { RestTimer } from "@/components/workout/RestTimer";
 import { AIGenerateModal } from "@/components/workout/AIGenerateModal";
 
@@ -67,7 +70,8 @@ function LogPageInner() {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const { units: _units } = useUnits();
+  const { units } = useUnits();
+  const { barbellKg } = useBarbellKg();
   const { workouts } = useWorkouts();
   const { exercises: customExercises, upsert: upsertCustomExercise } = useCustomExercises();
   const { programs } = usePrograms();
@@ -75,7 +79,7 @@ function LogPageInner() {
 
   const [draft, setDraft, clearDraft] = useDraft<Draft>(user?.uid, "draft", {
     name: "Evening Lift",
-    exercises: [blankExercise("Bench Press")],
+    exercises: [blankExercise("Barbell Bench Press")],
     startedAt: Date.now(),
   });
 
@@ -218,7 +222,7 @@ function LogPageInner() {
     }
     setSaving(true);
     try {
-      await saveWorkout(user.uid, {
+      const saved = await saveWorkout(user.uid, {
         name: draft.name.trim() || "Workout",
         exercises: valid,
         totalVolume: workoutVolume({ exercises: valid }, bodyweightKg),
@@ -256,7 +260,7 @@ function LogPageInner() {
 
       clearDraft();
       timer.cancel();
-      toast.success("Workout saved");
+      toast.success(saved === "queued" ? "Workout saved. It will sync when you're back online." : "Workout saved");
       router.push("/dashboard");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to save.";
@@ -371,8 +375,8 @@ function LogPageInner() {
                         {last && exercise.name && (
                           <p className="num mt-2 flex flex-wrap items-center gap-1 text-[11px] text-ink-2">
                             <TrendingUp className="h-3 w-3" />
-                            Last time: <strong className="text-ink">{last.kg}kg × {last.reps}</strong>
-                            <span className="font-semibold text-ok">· try {Math.round(last.kg * 1.025)}kg</span>
+                            Last time: <strong className="text-ink">{formatSet(last, units)}</strong>
+                            <span className="font-semibold text-ok">· try {nextTarget(last, units)}</span>
                           </p>
                         )}
 
@@ -384,7 +388,7 @@ function LogPageInner() {
                             value={exercise.notes ?? ""}
                             onChange={(e) => updateExercise(exercise.id, { notes: e.target.value })}
                             maxLength={500}
-                            className="h-10 w-full bg-transparent text-sm placeholder:text-ink-3 focus:outline-none"
+                            className="h-10 w-full bg-transparent text-base placeholder:text-ink-3 focus:outline-none"
                           />
                         </label>
 
@@ -426,14 +430,14 @@ function LogPageInner() {
 
                         {topSet && topSet.kg > 0 && (
                           <div className="mt-3">
-                            <PlateCalculator targetKg={topSet.kg} barbellKg={20} />
+                            <PlateCalculator targetKg={topSet.kg} barbellKg={barbellKg} />
                           </div>
                         )}
                       </div>
 
                       <div className="grid grid-cols-[28px_1fr_1fr_88px] gap-2 border-y border-line-soft bg-elevated/60 px-4 py-2 text-center">
                         <div className="label">#</div>
-                        <div className="label">{_units}</div>
+                        <div className="label">{units}</div>
                         <div className="label">Reps</div>
                         <div />
                       </div>
@@ -594,4 +598,20 @@ function findPastNote(workouts: { date: Date; exercises: Exercise[] }[], name: s
     }
   }
   return undefined;
+}
+
+/** "82.5 kg × 5", or "12 reps" for bodyweight sets. */
+function formatSet(set: { kg: number; reps: number }, units: Units): string {
+  return set.kg > 0 ? `${displayWeight(set.kg, units, 1)} ${units} × ${set.reps}` : `${set.reps} reps`;
+}
+
+/**
+ * Progressive-overload nudge: about 2.5% heavier, rounded to a loadable jump
+ * (2.5 kg / 5 lb). When that rounds back to the same weight, add a rep instead.
+ */
+function nextTarget(last: { kg: number; reps: number }, units: Units): string {
+  if (last.kg <= 0) return `${last.reps + 1} reps`;
+  const next = roundToPlate(last.kg * 1.025, units);
+  if (displayWeight(next, units, 1) > displayWeight(last.kg, units, 1)) return `${displayWeight(next, units, 1)} ${units}`;
+  return formatSet({ kg: last.kg, reps: last.reps + 1 }, units);
 }

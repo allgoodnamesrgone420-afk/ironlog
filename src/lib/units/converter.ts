@@ -24,3 +24,14 @@ export function roundToPlate(kg: number, units: Units): number {
   const inc = units === "kg" ? 2.5 : 5;
   return toKg(Math.round(inUnits / inc) * inc, units);
 }
+
+/** kg → the user's units, rounded so float noise (30.999999999999996) never reaches the UI. */
+export function displayWeight(kg: number, units: Units, decimals = 2): number {
+  const f = 10 ** decimals;
+  return Math.round(fromKg(kg, units) * f) / f;
+}
+
+/** The standard bar for each unit system: 20 kg, or 45 lb in pound gyms. */
+export function defaultBarKg(units: Units): number {
+  return units === "kg" ? 20 : toKg(45, "lb");
+}

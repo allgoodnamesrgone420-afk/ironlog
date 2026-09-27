@@ -2,7 +2,7 @@
    for page navigations and only falling back to cache when offline.
    Bump CACHE on releases to force-evict the old shell. */
 
-const CACHE = "ironlog-shell-v4";
+const CACHE = "ironlog-shell-v5";
 const STATIC = ["/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

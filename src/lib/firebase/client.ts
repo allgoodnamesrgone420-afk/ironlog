@@ -9,7 +9,13 @@ import {
   inMemoryPersistence,
   type Auth,
 } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -46,6 +52,23 @@ function resolveAuth(a: FirebaseApp): Auth {
   }
 }
 
+/**
+ * In the browser, keep Firestore's cache in IndexedDB so sets logged offline
+ * (a basement gym) are queued on disk and survive closing the app, instead of
+ * living only in memory until the connection returns.
+ */
+function resolveDb(a: FirebaseApp): Firestore {
+  if (typeof window === "undefined") return getFirestore(a);
+  try {
+    return initializeFirestore(a, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    // Already initialized (e.g. hot reload in dev).
+    return getFirestore(a);
+  }
+}
+
 export const auth: Auth = resolveAuth(app);
-export const db: Firestore = getFirestore(app);
+export const db: Firestore = resolveDb(app);
 export default app;

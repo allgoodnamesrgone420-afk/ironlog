@@ -4,6 +4,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { PWARegister } from "@/components/PWARegister";
+import { SettingsSync } from "@/components/SettingsSync";
 import { TimerProvider } from "@/providers/TimerProvider";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <BottomNav />
         <PWARegister />
+        <SettingsSync />
       </TimerProvider>
     </AuthGate>
   );

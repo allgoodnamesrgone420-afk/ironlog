@@ -3,7 +3,7 @@
 import { Trophy, TrendingUp } from "lucide-react";
 import type { PRRow } from "@/lib/analytics/personal-records";
 import { useUnits } from "@/providers/UnitsProvider";
-import { fromKg } from "@/lib/units/converter";
+import { displayWeight, fromKg } from "@/lib/units/converter";
 
 export function PRCards({ records }: { records: PRRow[] }) {
   const { units } = useUnits();
@@ -25,7 +25,7 @@ export function PRCards({ records }: { records: PRRow[] }) {
         // Bottom padding leaves room for each card's 3D edge inside the scroller.
         <div className="no-scrollbar -mx-5 flex gap-3 overflow-x-auto px-5 pb-2 lg:mx-0 lg:px-0">
           {records.slice(0, 10).map((r, idx) => {
-            const displayKg = fromKg(r.kg, units);
+            const displayKg = displayWeight(r.kg, units, 1);
             const displayDelta = r.deltaKg ? fromKg(r.deltaKg, units) : 0;
             return (
               <div key={r.name} className="plunk face-card w-[168px] shrink-0 p-4" style={{ ["--d" as string]: "4px" }}>
@@ -34,7 +34,7 @@ export function PRCards({ records }: { records: PRRow[] }) {
                   {idx === 0 && <span className="tag solid shrink-0 bg-[#ffb800] text-on-accent">Top</span>}
                 </div>
                 <p className="num mt-2 text-3xl font-extrabold tracking-tight">
-                  {Number.isInteger(displayKg) ? displayKg.toFixed(0) : displayKg.toFixed(1)}
+                  {displayKg}
                   <span className="ml-1 text-xs font-semibold text-ink-3">{units}</span>
                 </p>
                 <p className="num mt-1 text-xs text-ink-2">

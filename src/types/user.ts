@@ -1,6 +1,17 @@
 export type Units = "kg" | "lb";
 export type Theme = "light" | "dark" | "system";
 
+/** Preferences mirrored to the profile so they follow the account across devices. */
+export interface SyncedSettings {
+  units: Units;
+  theme: Theme;
+  /** Bar weight in kg; null means the standard bar for the unit system (20 kg / 45 lb). */
+  barbellKg: number | null;
+  restTimerEnabled: boolean;
+  trackedMuscles: string[];
+  muscleTargets: Record<string, number>;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -14,4 +25,6 @@ export interface UserProfile {
   /** Barbell weight in kg (20 for Olympic, 15 for women's, etc.) */
   barbellKg: number;
   createdAt: Date;
+  /** Written by SettingsSync; absent until the account's first sync. */
+  settings?: SyncedSettings;
 }

@@ -73,24 +73,26 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     [clear, tick, persist],
   );
 
+  // Side effects (intervals, storage) stay out of state updaters: React may run
+  // an updater twice, which used to leave a stray interval that brought a
+  // dismissed timer back as "Done".
   const pause = useCallback(() => {
+    if (status !== "running") return;
     clear();
+    const left = Math.max(0, Math.ceil((endAtRef.current - Date.now()) / 1000));
+    setSecondsLeft(left);
     setStatus("paused");
-    setSecondsLeft((s) => {
-      persist({ status: "paused", totalDuration, secondsLeft: s });
-      return s;
-    });
-  }, [clear, totalDuration, persist]);
+    persist({ status: "paused", totalDuration, secondsLeft: left });
+  }, [status, clear, totalDuration, persist]);
 
   const resume = useCallback(() => {
-    setStatus((s) => {
-      if (s !== "paused") return s;
-      endAtRef.current = Date.now() + secondsLeft * 1000;
-      persist({ status: "running", totalDuration, endsAt: endAtRef.current });
-      intervalRef.current = window.setInterval(tick, 250);
-      return "running";
-    });
-  }, [secondsLeft, totalDuration, tick, persist]);
+    if (status !== "paused") return;
+    clear();
+    endAtRef.current = Date.now() + secondsLeft * 1000;
+    persist({ status: "running", totalDuration, endsAt: endAtRef.current });
+    intervalRef.current = window.setInterval(tick, 250);
+    setStatus("running");
+  }, [status, secondsLeft, totalDuration, clear, tick, persist]);
 
   const cancel = useCallback(() => {
     clear();
@@ -102,11 +104,24 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   const addTime = useCallback(
     (delta: number) => {
-      setSecondsLeft((s) => Math.max(0, s + delta));
-      setTotalDuration((d) => Math.max(0, d + delta));
-      if (status === "running") endAtRef.current += delta * 1000;
+      if (status === "done") {
+        // "+15" after the countdown ends means 15 more seconds of rest.
+        if (delta > 0) start(delta);
+        return;
+      }
+      const total = Math.max(0, totalDuration + delta);
+      setTotalDuration(total);
+      if (status === "running") {
+        endAtRef.current += delta * 1000;
+        persist({ status: "running", totalDuration: total, endsAt: endAtRef.current });
+        tick();
+      } else if (status === "paused") {
+        const left = Math.max(0, secondsLeft + delta);
+        setSecondsLeft(left);
+        persist({ status: "paused", totalDuration: total, secondsLeft: left });
+      }
     },
-    [status],
+    [status, totalDuration, secondsLeft, start, persist, tick],
   );
 
   // Restore on mount — survives refresh and tab close

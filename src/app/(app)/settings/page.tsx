@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signOut, sendPasswordResetEmail, deleteUser } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw, Timer } from "lucide-react";
+import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw, Timer, Dumbbell } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -15,6 +15,8 @@ import { Confirm } from "@/components/ui/Confirm";
 import { useMuscleTargets, type DisplayMuscle } from "@/hooks/useMuscleTargets";
 import { useTrackedMuscles } from "@/hooks/useTrackedMuscles";
 import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
+import { useBarbellKg } from "@/hooks/useBarbellKg";
+import { displayWeight, toKg } from "@/lib/units/converter";
 import { ALL_MUSCLE_ROWS } from "@/components/dashboard/MuscleBalance";
 import { Check } from "lucide-react";
 
@@ -70,6 +72,9 @@ export default function SettingsPage() {
           />
         </Section>
       </Card>
+
+      {/* Barbell */}
+      <BarbellPicker />
 
       {/* Theme */}
       <Card variant="flat" className="p-4">
@@ -137,6 +142,27 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
       </h2>
       {children}
     </div>
+  );
+}
+
+const BAR_OPTIONS = { kg: [20, 15, 10], lb: [45, 35, 15] } as const;
+
+function BarbellPicker() {
+  const { units } = useUnits();
+  const { barbellKg, setBarbellKg } = useBarbellKg();
+  const current = displayWeight(barbellKg, units, 0);
+  return (
+    <Card variant="flat" className="p-4">
+      <Section icon={<Dumbbell className="h-3.5 w-3.5" />} title="Barbell">
+        <p className="text-sm text-ink-2">Used by the plate calculator when you log.</p>
+        <Tabs
+          label="Barbell weight"
+          value={String(current)}
+          options={BAR_OPTIONS[units].map((w) => ({ value: String(w), label: `${w} ${units}` }))}
+          onChange={(v) => setBarbellKg(toKg(Number(v), units))}
+        />
+      </Section>
+    </Card>
   );
 }
 
