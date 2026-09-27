@@ -4,14 +4,11 @@
     {
       "name": "ironlog-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
-    },
-    {
-      "name": "ironlog-static",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5056", "--directory", "out"],
-      "port": 5056
     }
   ]
 }

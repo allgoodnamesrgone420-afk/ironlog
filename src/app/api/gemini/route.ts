@@ -22,11 +22,6 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 export const runtime = "nodejs"; // firebase-admin requires Node, not Edge
 export const dynamic = "force-dynamic";
 
-// Capacitor WebView origins for the native apps (Android serves the bundle from
-// https://localhost, iOS from capacitor://localhost). These must pass both the
-// origin guard and CORS so the AI Coach can reach this proxy cross-origin.
-const APP_ORIGINS = ["https://localhost", "capacitor://localhost", "ionic://localhost"];
-
 function configuredOrigins(): string[] {
   return (process.env.ALLOWED_ORIGINS ?? "")
     .split(",")
@@ -37,7 +32,6 @@ function configuredOrigins(): string[] {
 function checkOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
   if (!origin) return true; // same-origin requests omit Origin
-  if (APP_ORIGINS.includes(origin)) return true; // native apps
   const allowed = configuredOrigins();
   if (allowed.length === 0) return true; // dev: rely on CORS/preflight
   return allowed.includes(origin);
@@ -46,7 +40,6 @@ function checkOrigin(req: Request): boolean {
 /** Value to echo in Access-Control-Allow-Origin, or null when none applies. */
 function allowedOrigin(origin: string | null): string | null {
   if (!origin) return null; // same-origin needs no CORS header
-  if (APP_ORIGINS.includes(origin)) return origin;
   const allowed = configuredOrigins();
   if (allowed.length === 0) return origin; // dev: reflect
   return allowed.includes(origin) ? origin : null;

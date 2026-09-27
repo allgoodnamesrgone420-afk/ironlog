@@ -29,15 +29,11 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 /**
- * In the native (Capacitor) WebView, the default getAuth() eagerly wires up the
- * browser popup/redirect resolver, which loads a cross-origin auth iframe from
- * <project>.firebaseapp.com. Under the capacitor:// origin that iframe throws a
- * (cross-origin–masked) "Script error" and stalls auth init, so
- * onAuthStateChanged never fires and the app hangs on a blank screen.
- *
- * IronLog only uses email/password, so we initialize Auth WITHOUT that resolver
- * and with an explicit persistence fallback chain. getAuth() is kept for the
- * SSR/static-export prerender pass where browser persistence isn't available.
+ * The default getAuth() eagerly wires up the popup/redirect resolver, which loads
+ * a hidden auth iframe from <project>.firebaseapp.com. IronLog only uses
+ * email/password, so we initialize Auth WITHOUT that resolver and with an
+ * explicit persistence fallback chain. getAuth() is kept for the server-side
+ * prerender pass where browser persistence isn't available.
  */
 function resolveAuth(a: FirebaseApp): Auth {
   if (typeof window === "undefined") return getAuth(a);

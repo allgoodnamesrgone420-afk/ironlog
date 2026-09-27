@@ -3,7 +3,6 @@
     "allow": [
       "mcp__Claude_Preview__preview_start",
       "Bash(npm run *)",
-      "Bash(npx cap *)",
       "Read(//tmp/**)"
     ]
   }
