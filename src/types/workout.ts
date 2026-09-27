@@ -31,6 +31,8 @@ export interface WorkoutSet {
   reps: number;
   /** Rate of Perceived Exertion, 1-10 (optional) */
   rpe?: number;
+  /** Warm-up set: logged, but left out of volume, set counts, muscle balance and PRs. */
+  warmup?: boolean;
   completed: boolean;
 }
 

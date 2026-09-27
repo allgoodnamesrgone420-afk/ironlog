@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { GeminiRequestSchema } from "@/lib/validation/schemas";
+import { checkOrigin, withCors } from "@/lib/server/cors";
 
 /**
  * Secure proxy to Google Gemini.
@@ -21,41 +22,6 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemi
 
 export const runtime = "nodejs"; // firebase-admin requires Node, not Edge
 export const dynamic = "force-dynamic";
-
-function configuredOrigins(): string[] {
-  return (process.env.ALLOWED_ORIGINS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function checkOrigin(req: Request): boolean {
-  const origin = req.headers.get("origin");
-  if (!origin) return true; // same-origin requests omit Origin
-  const allowed = configuredOrigins();
-  if (allowed.length === 0) return true; // dev: rely on CORS/preflight
-  return allowed.includes(origin);
-}
-
-/** Value to echo in Access-Control-Allow-Origin, or null when none applies. */
-function allowedOrigin(origin: string | null): string | null {
-  if (!origin) return null; // same-origin needs no CORS header
-  const allowed = configuredOrigins();
-  if (allowed.length === 0) return origin; // dev: reflect
-  return allowed.includes(origin) ? origin : null;
-}
-
-function withCors(res: NextResponse, origin: string | null): NextResponse {
-  const allow = allowedOrigin(origin);
-  if (allow) {
-    res.headers.set("Access-Control-Allow-Origin", allow);
-    res.headers.set("Vary", "Origin");
-    res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
-    res.headers.set("Access-Control-Max-Age", "86400");
-  }
-  return res;
-}
 
 // CORS preflight — browsers/WebViews send this before the authenticated POST.
 export async function OPTIONS(req: Request) {

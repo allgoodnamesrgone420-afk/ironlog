@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { signOut, sendPasswordResetEmail, deleteUser } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw, Timer, Dumbbell } from "lucide-react";
+import Link from "next/link";
+import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw, Timer, Dumbbell, Flame } from "lucide-react";
 import { auth } from "@/lib/firebase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
@@ -17,6 +18,7 @@ import { useTrackedMuscles } from "@/hooks/useTrackedMuscles";
 import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
 import { useBarbellKg } from "@/hooks/useBarbellKg";
 import { displayWeight, toKg } from "@/lib/units/converter";
+import { WEEKLY_GOAL_SETTING, useSetting } from "@/lib/settings";
 import { ALL_MUSCLE_ROWS } from "@/components/dashboard/MuscleBalance";
 import { Check } from "lucide-react";
 
@@ -57,6 +59,9 @@ export default function SettingsPage() {
         <p className="label">Settings</p>
         <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Your preferences</h1>
       </header>
+
+      {/* Weekly goal */}
+      <WeeklyGoalPicker />
 
       {/* Units */}
       <Card variant="flat" className="p-4">
@@ -283,6 +288,28 @@ function MuscleTargetsEditor() {
       <Button variant="ghost" onClick={reset} block>
         <RotateCcw className="h-3.5 w-3.5" /> Reset to defaults
       </Button>
+    </Card>
+  );
+}
+
+function WeeklyGoalPicker() {
+  const [goal, setGoal] = useSetting(WEEKLY_GOAL_SETTING);
+  return (
+    <Card variant="flat" className="p-4">
+      <Section icon={<Flame className="h-3.5 w-3.5" />} title="Weekly goal">
+        <Tabs
+          label="Training days per week"
+          value={String(goal)}
+          options={["1", "2", "3", "4", "5", "6", "7"].map((v) => ({ value: v, label: v }))}
+          onChange={(v) => setGoal(Number(v))}
+        />
+        <p className="mt-2 text-xs text-ink-2">
+          Train {goal} day{goal === 1 ? "" : "s"} a week to keep your streak going. One missed week a month is forgiven.{" "}
+          <Link href="/week" className="font-bold text-ink underline decoration-lime decoration-2 underline-offset-4">
+            Weekly report card
+          </Link>
+        </p>
+      </Section>
     </Card>
   );
 }

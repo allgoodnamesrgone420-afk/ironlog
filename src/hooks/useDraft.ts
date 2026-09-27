@@ -3,13 +3,14 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 /**
- * Persists a value to localStorage under a user-scoped key. Auto-loads on mount.
+ * Persists a value to localStorage under a user-scoped key. Auto-loads on mount;
+ * the 4th value turns true once the stored copy (if any) has been loaded.
  */
 export function useDraft<T>(
   uid: string | undefined,
   key: string,
   initial: T,
-): [T, Dispatch<SetStateAction<T>>, () => void] {
+): [T, Dispatch<SetStateAction<T>>, () => void, boolean] {
   const fullKey = uid ? `ironlog:${uid}:${key}` : null;
   const [value, setValue] = useState<T>(initial);
   const [hydrated, setHydrated] = useState(false);
@@ -41,5 +42,5 @@ export function useDraft<T>(
     localStorage.removeItem(fullKey);
   };
 
-  return [value, setValue, clear];
+  return [value, setValue, clear, hydrated];
 }

@@ -47,3 +47,12 @@ export function startOfWeek(d = new Date()): Date {
 export function friendlyName(user: { displayName?: string | null; email?: string | null } | null | undefined) {
   return (user?.displayName || user?.email?.split("@")[0] || "Athlete").replace(/^./, (c) => c.toUpperCase());
 }
+
+/** Workout length: "48 min", "1h 04m", "<1 min", or "—" when unknown. */
+export function formatDuration(sec?: number | null) {
+  if (!sec || sec <= 0) return "—";
+  const m = Math.round(sec / 60);
+  if (m < 1) return "<1 min";
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+}

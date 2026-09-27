@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useUnits } from "@/providers/UnitsProvider";
 import { useAuth } from "@/providers/AuthProvider";
@@ -10,8 +10,12 @@ import { estimate1RM } from "@/lib/analytics/onerm";
 import { workoutSetCount, workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { useSeen } from "@/hooks/useSeen";
-import { addBodyMetric, subscribeToBodyMetrics } from "@/lib/firebase/repository";
-import type { BodyMetric } from "@/types/workout";
+import { isWorkSet } from "@/lib/analytics/sets";
+import { addBodyMetric } from "@/lib/firebase/repository";
+import { useBodyMetrics } from "@/hooks/useBodyMetrics";
+import { dayKey } from "@/lib/analytics/goal";
+import { trendSeries, weeklyRate, weightsFromMetrics } from "@/lib/analytics/weight";
+import { WeightTrendChart } from "@/components/charts/WeightTrendChart";
 import Link from "next/link";
 import { computePRs } from "@/lib/analytics/personal-records";
 import { Button } from "@/components/ui/Button";
@@ -22,47 +26,8 @@ import { StatsSkeleton } from "@/components/ui/PageSkeletons";
 import { MuscleBalance } from "@/components/dashboard/MuscleBalance";
 import { VolumeChart } from "@/components/dashboard/VolumeChart";
 import { PRCards } from "@/components/dashboard/PRCards";
-import { BarChart3, Calendar, Scale, Plus } from "lucide-react";
-
-/**
- * Flat NeoPop line chart: an ink line with square markers. Markers are HTML so
- * they stay square while the SVG stretches to the container.
- */
-function TrendChart({ data, spread = 0.9 }: { data: { date: Date; v: number }[]; spread?: number }) {
-  const [ref, seen] = useSeen<HTMLDivElement>();
-  const max = Math.max(...data.map((d) => d.v));
-  const min = Math.min(...data.map((d) => d.v));
-  const range = max - min || 1;
-  const pad = ((1 - spread) / 2) * 100;
-  const x = (i: number) => (i / (data.length - 1)) * 100;
-  const y = (v: number) => 100 - pad - ((v - min) / range) * spread * 100;
-  const points = data.map((d, i) => `${x(i)},${y(d.v)}`).join(" ");
-  return (
-    <div ref={ref} data-seen={seen} className="wipe-in relative h-32">
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full overflow-visible" preserveAspectRatio="none" aria-hidden>
-        {[25, 50, 75].map((p) => (
-          <line key={p} x1="0" x2="100" y1={p} y2={p} style={{ stroke: "rgb(var(--line-soft))" }} strokeWidth="1" vectorEffect="non-scaling-stroke" />
-        ))}
-        <polyline
-          points={points}
-          fill="none"
-          style={{ stroke: "rgb(var(--ink))" }}
-          strokeWidth="2"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      {data.map((d, i) => (
-        <span
-          key={i}
-          className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 bg-violet ring-2 ring-surface"
-          style={{ left: `${x(i)}%`, top: `${y(d.v)}%` }}
-          aria-hidden
-        />
-      ))}
-    </div>
-  );
-}
+import { BarChart3, Calendar, CalendarCheck, Scale, Plus } from "lucide-react";
+import { TrendChart } from "@/components/charts/TrendChart";
 
 /** Per-exercise 1RM progression over time. */
 function ProgressionChart({ data }: { data: { date: Date; v: number }[] }) {
@@ -101,7 +66,7 @@ export default function StatsPage() {
       for (const ex of w.exercises) {
         if (ex.name === selected) {
           for (const s of ex.sets) {
-            if (!s.completed) continue;
+            if (!isWorkSet(s)) continue;
             const est = estimate1RM(s.kg, s.reps);
             if (est > best) best = est;
           }
@@ -121,7 +86,7 @@ export default function StatsPage() {
     for (const w of workouts) {
       for (const ex of w.exercises ?? []) {
         for (const s of ex.sets ?? []) {
-          if (!s.completed) continue;
+          if (!isWorkSet(s)) continue;
           const reps = Number.isFinite(s.reps) ? s.reps : 0;
           if (reps <= 0) continue;
           if (reps <= 5) strength++;
@@ -187,9 +152,20 @@ export default function StatsPage() {
 
   return (
     <div className="stagger space-y-6">
-      <header style={{ ["--i" as string]: 0 }}>
-        <p className="label">Stats</p>
-        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">How you&apos;re stacking up</h1>
+      <header className="flex flex-wrap items-end justify-between gap-3" style={{ ["--i" as string]: 0 }}>
+        <div>
+          <p className="label">Stats</p>
+          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">How you&apos;re stacking up</h1>
+        </div>
+        {/* Phones reach these from here (desktop also has them in the sidebar). */}
+        <nav className="flex gap-2" aria-label="More stats">
+          <Link href="/week" className="flex h-9 items-center gap-1.5 border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated">
+            <CalendarCheck className="h-4 w-4" /> Weekly report
+          </Link>
+          <Link href="/body" className="flex h-9 items-center gap-1.5 border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated">
+            <Scale className="h-4 w-4" /> Body
+          </Link>
+        </nav>
       </header>
 
       {/* Lifetime totals */}
@@ -260,6 +236,14 @@ export default function StatsPage() {
               </p>
             )}
             <ProgressionChart data={progression} />
+            {selected && (
+              <Link
+                href={`/exercise?name=${encodeURIComponent(selected)}`}
+                className="mt-3 inline-block text-[11px] font-bold uppercase tracking-[0.1em] underline decoration-lime decoration-2 underline-offset-4"
+              >
+                {selected}: history and records →
+              </Link>
+            )}
           </section>
 
           {/* Training emphasis — rep-range distribution */}
@@ -284,18 +268,9 @@ function BodyweightSection() {
   const { user } = useAuth();
   const { units } = useUnits();
   const toast = useToast();
-  const [metrics, setMetrics] = useState<BodyMetric[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const { metrics, loaded } = useBodyMetrics();
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    return subscribeToBodyMetrics(user.uid, (m) => {
-      setMetrics(m);
-      setLoaded(true);
-    });
-  }, [user]);
 
   const log = async () => {
     if (!user) return;
@@ -316,19 +291,13 @@ function BodyweightSection() {
     }
   };
 
-  const series = useMemo(
-    () =>
-      metrics
-        .filter((m) => typeof m.weightKg === "number")
-        .slice(0, 60)
-        .reverse()
-        .map((m) => ({ date: m.date, v: fromKg(m.weightKg!, units) })),
-    [metrics, units],
-  );
-
+  // Smoothed trend (ported from Bite): the last 90 days.
+  const today = dayKey(new Date());
+  const weights = useMemo(() => weightsFromMetrics(metrics), [metrics]);
+  const series = useMemo(() => trendSeries(weights, today).slice(-90), [weights, today]);
+  const rate = useMemo(() => weeklyRate(weights, today), [weights, today]);
+  const weighIns = Object.keys(weights).length;
   const latest = series[series.length - 1];
-  const oldest = series[0];
-  const delta = latest && oldest ? latest.v - oldest.v : 0;
 
   return (
     <section className="plunk face-card space-y-4 p-4" style={{ ["--d" as string]: "4px" }} aria-label="Bodyweight">
@@ -337,18 +306,18 @@ function BodyweightSection() {
           <p className="label flex items-center gap-1.5">
             <Scale className="h-3.5 w-3.5" /> Bodyweight
           </p>
-          <p className="text-xs text-ink-2">Daily or weekly check-in</p>
+          <p className="text-xs text-ink-2">Smoothed trend, 90 days</p>
         </div>
         {latest && (
           <div className="text-right">
             <p className="num text-3xl font-extrabold leading-none">
-              {latest.v.toFixed(1)}
+              {fromKg(latest.trend, units).toFixed(1)}
               <span className="ml-1 text-sm font-semibold text-ink-3">{units}</span>
             </p>
-            {Math.abs(delta) >= 0.1 && (
-              <p className={`num mt-1 text-xs font-semibold ${delta > 0 ? "text-warn" : "text-ok"}`}>
-                {delta > 0 ? "+" : ""}
-                {delta.toFixed(1)} {units} all-time
+            {rate !== null && Math.abs(rate) >= 0.01 && (
+              <p className="num mt-1 text-xs font-semibold text-ink-2">
+                {rate > 0 ? "+" : "−"}
+                {Math.abs(fromKg(rate, units)).toFixed(2)} {units}/week
               </p>
             )}
           </div>
@@ -373,34 +342,17 @@ function BodyweightSection() {
 
       {!loaded ? (
         <Skeleton className="h-[164px]" />
-      ) : series.length >= 2 ? (
-        <BodyweightChart data={series} />
-      ) : series.length === 1 ? (
+      ) : weighIns >= 2 ? (
+        <WeightTrendChart series={series} units={units} height={128} />
+      ) : weighIns === 1 ? (
         <p className="py-4 text-center text-xs text-ink-3">One more entry and the trend appears.</p>
       ) : (
         <p className="py-4 text-center text-xs text-ink-3">No bodyweight logged yet.</p>
       )}
+      <Link href="/body" className="inline-block text-[11px] font-bold uppercase tracking-[0.1em] underline decoration-lime decoration-2 underline-offset-4">
+        Body fat, measurements and photos →
+      </Link>
     </section>
-  );
-}
-
-function BodyweightChart({ data }: { data: { date: Date; v: number }[] }) {
-  const max = Math.max(...data.map((d) => d.v));
-  const min = Math.min(...data.map((d) => d.v));
-  const fmt = (d: Date | undefined) => d?.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-  return (
-    <div>
-      <div className="num mb-1 flex justify-between text-[10px] text-ink-3">
-        <span>High {max.toFixed(1)}</span>
-        <span>Low {min.toFixed(1)}</span>
-      </div>
-      <TrendChart data={data} spread={0.8} />
-      <div className="mt-1.5 flex justify-between text-[10px] text-ink-3">
-        <span>{fmt(data[0]?.date)}</span>
-        <span>{fmt(data[data.length - 1]?.date)}</span>
-      </div>
-    </div>
   );
 }
 
@@ -508,7 +460,7 @@ function MonthCalendar({ workouts }: { workouts: { date: Date; exercises: { sets
     for (const w of workouts) {
       const d = new Date(w.date);
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const sets = w.exercises.reduce((a, ex) => a + ex.sets.filter((s) => s.completed).length, 0);
+      const sets = w.exercises.reduce((a, ex) => a + ex.sets.filter(isWorkSet).length, 0);
       const existing = map.get(k) ?? { workouts: 0, sets: 0 };
       map.set(k, { workouts: existing.workouts + 1, sets: existing.sets + sets });
     }

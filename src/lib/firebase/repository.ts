@@ -5,6 +5,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -69,18 +70,33 @@ export function subscribeToWorkouts(uid: string, cb: (workouts: Workout[]) => vo
   });
 }
 
+/** Firestore fields for a workout (the id is the document id). */
+function workoutFields(workout: Omit<Workout, "id" | "date"> & { date?: Date }) {
+  return {
+    name: workout.name,
+    exercises: workout.exercises,
+    totalVolume: workout.totalVolume,
+    durationSec: workout.durationSec ?? null,
+    notes: workout.notes ?? null,
+    programRef: workout.programRef ?? null,
+    date: workout.date ? Timestamp.fromDate(workout.date) : serverTimestamp(),
+  };
+}
+
+/**
+ * Saves a new workout. The id is made on the device, so the summary page can
+ * open it straight away, even offline (the write syncs later).
+ */
 export async function saveWorkout(uid: string, workout: Omit<Workout, "id" | "date"> & { date?: Date }) {
-  return confirmOrQueue(
-    addDoc(workoutsCol(uid), {
-      name: workout.name,
-      exercises: workout.exercises,
-      totalVolume: workout.totalVolume,
-      durationSec: workout.durationSec ?? null,
-      notes: workout.notes ?? null,
-      programRef: workout.programRef ?? null,
-      date: workout.date ? Timestamp.fromDate(workout.date) : serverTimestamp(),
-    }),
-  );
+  const ref = doc(workoutsCol(uid));
+  const status = await confirmOrQueue(setDoc(ref, workoutFields(workout)));
+  return { id: ref.id, status };
+}
+
+/** Replaces a saved workout's contents (edit) or brings a deleted one back (undo). */
+export async function putWorkout(uid: string, workout: Workout) {
+  const { id, ...rest } = workout;
+  return confirmOrQueue(setDoc(doc(workoutsCol(uid), id), workoutFields({ ...rest, date: rest.date })));
 }
 
 export async function deleteWorkout(uid: string, workoutId: string) {
@@ -204,6 +220,66 @@ export function subscribeToBodyMetrics(uid: string, cb: (m: BodyMetric[]) => voi
   );
 }
 
+// ─── Progress photos ─────────────────────────────────────────────────
+// Two collections so the grid stays light: a small thumbnail per photo here,
+// the full-size image in its own document, fetched only when opened.
+export interface ProgressPhoto {
+  id: string;
+  date: Date;
+  /** Small JPEG data URL for the grid. */
+  thumb: string;
+  note?: string;
+}
+
+function photosCol(uid: string) {
+  return collection(db, "users", uid, "progressPhotos");
+}
+function photoDataDoc(uid: string, id: string) {
+  return doc(db, "users", uid, "progressPhotoData", id);
+}
+
+export function subscribeToPhotos(uid: string, cb: (p: ProgressPhoto[]) => void, onError?: (e: Error) => void): Unsubscribe {
+  const q = query(photosCol(uid), orderBy("date", "desc"));
+  return onSnapshot(
+    q,
+    (snap) =>
+      cb(
+        snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            id: d.id,
+            date: data["date"] instanceof Timestamp ? (data["date"] as Timestamp).toDate() : new Date(),
+            thumb: String(data["thumb"] ?? ""),
+            note: (data["note"] as string | undefined) ?? undefined,
+          };
+        }),
+      ),
+    (e) => onError?.(e),
+  );
+}
+
+export async function addPhoto(uid: string, photo: { date: Date; thumb: string; full: string; note?: string }) {
+  const ref = doc(photosCol(uid));
+  const batch = writeBatch(db);
+  batch.set(ref, { date: Timestamp.fromDate(photo.date), thumb: photo.thumb, note: photo.note ?? null });
+  batch.set(photoDataDoc(uid, ref.id), { full: photo.full });
+  return confirmOrQueue(batch.commit());
+}
+
+/** The full-size image, or null if it's gone. */
+export async function getPhotoFull(uid: string, id: string): Promise<string | null> {
+  const snap = await getDoc(photoDataDoc(uid, id));
+  const full = snap.exists() ? (snap.data() as Record<string, unknown>)["full"] : null;
+  return typeof full === "string" ? full : null;
+}
+
+export async function deletePhoto(uid: string, id: string) {
+  const batch = writeBatch(db);
+  batch.delete(doc(photosCol(uid), id));
+  batch.delete(photoDataDoc(uid, id));
+  return confirmOrQueue(batch.commit());
+}
+
 export async function addBodyMetric(uid: string, metric: Omit<BodyMetric, "id">) {
   return confirmOrQueue(
     addDoc(bodyMetricsCol(uid), {
@@ -230,14 +306,24 @@ export function subscribeToCoachMessages(uid: string, cb: (msgs: CoachMessage[])
           role: (data["role"] as "user" | "model") ?? "model",
           text: String(data["text"] ?? ""),
           createdAt: ts instanceof Timestamp ? ts.toDate() : new Date(),
+          workout: (data["workout"] as CoachMessage["workout"]) ?? undefined,
         };
       }),
     ),
   );
 }
 
-export async function appendCoachMessage(uid: string, role: "user" | "model", text: string) {
-  return confirmOrQueue(addDoc(coachCol(uid), { role, text, createdAt: serverTimestamp() }));
+/** A fresh message id, so a streamed reply can be swapped for its saved copy without a flicker. */
+export const newCoachMessageId = (uid: string) => doc(coachCol(uid)).id;
+
+export async function appendCoachMessage(
+  uid: string,
+  role: "user" | "model",
+  text: string,
+  extra: { id?: string; workout?: CoachMessage["workout"] } = {},
+) {
+  const ref = extra.id ? doc(coachCol(uid), extra.id) : doc(coachCol(uid));
+  return confirmOrQueue(setDoc(ref, { role, text, createdAt: serverTimestamp(), ...(extra.workout ? { workout: extra.workout } : {}) }));
 }
 
 // ─── User profile (units, theme, weekly goal) ────────────────────────

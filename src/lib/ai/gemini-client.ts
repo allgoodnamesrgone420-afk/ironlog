@@ -45,3 +45,47 @@ export async function callGemini<T = unknown>(
   // Server returns the extracted text directly (or parsed JSON when jsonMode)
   return data as T;
 }
+
+/**
+ * Streams a coach reply from /api/coach. `onText` gets the whole reply so far
+ * after every chunk; resolves with the full text.
+ */
+export async function streamCoach(opts: {
+  messages: { role: "user" | "model"; text: string }[];
+  context: string;
+  signal?: AbortSignal;
+  onText: (full: string) => void;
+}): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  const idToken = await user.getIdToken();
+
+  const res = await fetch("/api/coach", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify({ messages: opts.messages, context: opts.context }),
+    signal: opts.signal,
+  });
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      msg = ((await res.json()) as { error?: string }).error ?? msg;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(msg);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += decoder.decode(value, { stream: true });
+    opts.onText(full);
+  }
+  full += decoder.decode();
+  opts.onText(full);
+  return full;
+}

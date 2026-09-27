@@ -107,3 +107,14 @@ export const BARBELL_SETTING: SettingDef<number | null> = {
   },
   serialize: (v) => String(v),
 };
+
+/** Training days per week the streak and report card measure against. */
+export const WEEKLY_GOAL_SETTING: SettingDef<number> = {
+  key: "ironlog:weeklyGoal",
+  fallback: 3,
+  parse: (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 1 && n <= 7 ? n : undefined;
+  },
+  serialize: (v) => String(v),
+};

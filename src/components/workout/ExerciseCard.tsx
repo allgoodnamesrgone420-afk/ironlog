@@ -1,19 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Link as LinkIcon, MessageSquareQuote, MoreHorizontal, Plus, Trash2, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import {
+  ArrowUpDown, Check, ChevronDown, ChevronUp, History, Link as LinkIcon, MessageSquareQuote, MoreHorizontal, Plus, Trash2, TrendingUp,
+} from "lucide-react";
 import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import type { Units } from "@/types/user";
 import { findExercise } from "@/lib/data/exercises";
 import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { beats } from "@/lib/analytics/personal-records";
 import { displayWeight, roundToPlate } from "@/lib/units/converter";
+import { uid } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { ExerciseAutocomplete, type CustomExerciseLike } from "./ExerciseAutocomplete";
 import { PlateCalculator } from "./PlateCalculator";
 import { SetRow } from "./SetRow";
 
 const MUSCLES: MuscleGroup[] = ["chest", "back", "shoulders", "biceps", "triceps", "forearms", "core", "quads", "hamstrings", "glutes", "calves", "cardio"];
+
+/** Warm-up ramp: share of the working weight and reps for the 1st, 2nd, 3rd warm-up. */
+const WARMUP_RAMP = [
+  { pct: 0.5, reps: 8 },
+  { pct: 0.7, reps: 5 },
+  { pct: 0.85, reps: 3 },
+];
 
 interface Props {
   exercise: Exercise;
@@ -24,11 +35,11 @@ interface Props {
   last: { kg: number; reps: number } | null;
   /** Best set from earlier sessions, for PR detection. */
   prevBest: { kg: number; reps: number } | null;
-  /** First exercise of its group: owns the reorder / superset controls. */
+  /** "edit" fixes up a saved workout: every set counts, no rest timer, no folding. */
+  mode?: "log" | "edit";
+  /** First exercise of its group: owns the superset control. */
   leadsGroup: boolean;
   inSuperset: boolean;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   onNameChange: (name: string) => void;
   onPick: (s: { name: string; muscles?: MuscleGroup[] }) => void;
   onUpdate: (patch: Partial<Exercise>) => void;
@@ -36,7 +47,8 @@ interface Props {
   onUpdateSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onRemoveSet: (setId: string) => void;
   onSetComplete: () => void;
-  onMove: (direction: -1 | 1) => void;
+  /** Opens the reorder sheet (left out when there's nothing to reorder). */
+  onReorder?: () => void;
   onSuperset: () => void;
   onRemove: () => void;
 }
@@ -59,14 +71,15 @@ function nextTarget(last: { kg: number; reps: number }, units: Units): string {
 
 /**
  * One exercise in the logger. The set table is the focus; notes, machine
- * settings, plates and reorder/superset/remove sit behind "⋯". Once every set
- * is done the card folds to a single line (tap to reopen).
+ * settings, plates, reorder, superset and remove sit behind "⋯". Once every
+ * set is done the card folds to a single line (tap to reopen).
  */
 export function ExerciseCard(props: Props) {
-  const { exercise, units, last, prevBest } = props;
+  const { exercise, units, last, prevBest, mode = "log" } = props;
+  const editing = mode === "edit";
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  const done = exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
+  const done = !editing && exercise.sets.length > 0 && exercise.sets.every((s) => s.completed);
   // Fold a moment after the last set, so its check (and any PR burst) is seen first.
   const [foldReady, setFoldReady] = useState(done);
   const [reopened, setReopened] = useState(false);
@@ -85,20 +98,41 @@ export function ExerciseCard(props: Props) {
   const topSet = exercise.sets.find((s) => !s.completed) ?? exercise.sets[exercise.sets.length - 1];
   const custom = exercise.name.trim() !== "" && !findExercise(exercise.name);
 
-  // PRs only count against earlier sessions; a first attempt isn't a record.
+  // Working sets are numbered 1, 2, 3…; warm-ups show as "W".
+  let n = 0;
+  const labels = exercise.sets.map((s) => (s.warmup ? "W" : String(++n)));
+  const workSets = exercise.sets.filter((s) => !s.warmup);
+  const warmups = exercise.sets.length - workSets.length;
+
+  // PRs only count against earlier sessions; a first attempt isn't a record. Warm-ups never are.
   const sessionBestExcept = (i: number) =>
     exercise.sets.reduce<{ kg: number; reps: number } | null>(
-      (best, s, j) => (j !== i && s.completed && s.kg > 0 && beats(s, best) ? s : best),
+      (best, s, j) => (j !== i && s.completed && !s.warmup && s.kg > 0 && beats(s, best) ? s : best),
       null,
     );
   const isNewBest = (s: { kg: number; reps: number }, i: number) => {
-    if (!prevBest || s.kg <= 0 || s.reps <= 0) return false;
+    if (!prevBest || exercise.sets[i]?.warmup || s.kg <= 0 || s.reps <= 0) return false;
     const sessionBest = sessionBestExcept(i);
     return beats(s, sessionBest && beats(sessionBest, prevBest) ? sessionBest : prevBest);
   };
 
+  /** Adds the next warm-up before the working sets, ramping toward the working weight. */
+  const addWarmup = () => {
+    const step = WARMUP_RAMP[Math.min(warmups, WARMUP_RAMP.length - 1)]!;
+    const base = exercise.sets.find((s) => !s.warmup && s.kg > 0)?.kg ?? last?.kg ?? 0;
+    const set: WorkoutSet = {
+      id: uid(),
+      kg: base > 0 ? roundToPlate(base * step.pct, units) : 0,
+      reps: step.reps,
+      completed: editing,
+      warmup: true,
+    };
+    const at = exercise.sets.findIndex((s) => !s.warmup);
+    props.onUpdate({ sets: at === -1 ? [...exercise.sets, set] : [...exercise.sets.slice(0, at), set, ...exercise.sets.slice(at)] });
+  };
+
   if (folded) {
-    const best = exercise.sets.reduce<WorkoutSet | null>((b, s) => (beats(s, b) ? s : b), null);
+    const best = workSets.reduce<WorkoutSet | null>((b, s) => (beats(s, b) ? s : b), null);
     return (
       <button
         type="button"
@@ -112,7 +146,8 @@ export function ExerciseCard(props: Props) {
         <span className="min-w-0 flex-1">
           <span className="block truncate font-bold">{exercise.name || "Exercise"}</span>
           <span className="num block truncate text-xs text-ink-2">
-            {exercise.sets.length} set{exercise.sets.length === 1 ? "" : "s"}
+            {workSets.length} set{workSets.length === 1 ? "" : "s"}
+            {warmups > 0 && ` + ${warmups} warm-up`}
             {best && ` · top ${formatSet(best, units)}`}
           </span>
         </span>
@@ -123,6 +158,7 @@ export function ExerciseCard(props: Props) {
 
   const smallBtn =
     "flex h-9 items-center gap-1.5 border border-line px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated disabled:opacity-30";
+  const cols = editing ? "grid-cols-[34px_1fr_1fr]" : "grid-cols-[34px_1fr_1fr_48px]";
 
   return (
     <Card>
@@ -191,7 +227,7 @@ export function ExerciseCard(props: Props) {
         )}
 
         {/* Last-session hint (progressive overload) */}
-        {last && exercise.name && (
+        {!editing && last && exercise.name && (
           <p className="num mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-ink-2">
             <TrendingUp className="h-3 w-3" />
             Last time: <strong className="text-ink">{formatSet(last, units)}</strong>
@@ -234,20 +270,20 @@ export function ExerciseCard(props: Props) {
             </div>
             {topSet && topSet.kg > 0 && <PlateCalculator targetKg={topSet.kg} barbellKg={props.barbellKg} />}
             <div className="flex flex-wrap gap-2">
-              {props.leadsGroup && (
-                <>
-                  <button type="button" onClick={() => props.onMove(-1)} disabled={!props.canMoveUp} className={smallBtn}>
-                    <ChevronUp className="h-4 w-4" /> Up
-                  </button>
-                  <button type="button" onClick={() => props.onMove(1)} disabled={!props.canMoveDown} className={smallBtn}>
-                    <ChevronDown className="h-4 w-4" /> Down
-                  </button>
-                </>
+              {props.onReorder && (
+                <button type="button" onClick={props.onReorder} className={smallBtn}>
+                  <ArrowUpDown className="h-4 w-4" /> Reorder
+                </button>
               )}
               {props.leadsGroup && !props.inSuperset && (
                 <button type="button" onClick={props.onSuperset} className={`${smallBtn} text-warn`}>
                   <LinkIcon className="h-4 w-4" /> Superset
                 </button>
+              )}
+              {exercise.name.trim() && (
+                <Link href={`/exercise?name=${encodeURIComponent(exercise.name.trim())}`} className={smallBtn}>
+                  <History className="h-4 w-4" /> History
+                </Link>
               )}
               <button type="button" onClick={props.onRemove} className={`${smallBtn} text-over`}>
                 <Trash2 className="h-4 w-4" /> Remove
@@ -257,23 +293,24 @@ export function ExerciseCard(props: Props) {
         )}
       </div>
 
-      <div className="grid grid-cols-[48px_1fr_1fr_24px] gap-1 border-y border-line-soft bg-elevated/60 px-3 py-1.5 text-center sm:px-4">
+      <div className={`grid ${cols} gap-1.5 border-y border-line-soft bg-elevated/60 px-3 py-1.5 text-center sm:px-4`}>
         <div className="label">Set</div>
         <div className="label">{units}</div>
         <div className="label">Reps</div>
-        <div />
+        {!editing && <div className="label">Done</div>}
       </div>
 
       <div className="space-y-2 px-3 py-3 sm:px-4">
         {exercise.sets.map((set, idx) => (
           <SetRow
             key={set.id}
-            index={idx}
+            label={labels[idx]!}
             set={set}
-            suggestion={last ?? undefined}
+            editing={editing}
+            suggestion={set.warmup || editing ? undefined : (last ?? undefined)}
             canDelete={exercise.sets.length > 1}
             beatsBest={(values) => isNewBest(values, idx)}
-            isPR={set.completed && !!prevBest && set.kg > 0 && beats(set, prevBest)}
+            isPR={set.completed && !set.warmup && !!prevBest && set.kg > 0 && beats(set, prevBest)}
             onChange={(patch) => props.onUpdateSet(set.id, patch)}
             onDelete={() => props.onRemoveSet(set.id)}
             onComplete={props.onSetComplete}
@@ -281,13 +318,22 @@ export function ExerciseCard(props: Props) {
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={props.onAddSet}
-        className="flex h-11 w-full items-center justify-center gap-2 border-t border-dashed border-line-soft text-xs font-bold uppercase tracking-[0.1em] text-ink-2 transition-colors hover:bg-elevated hover:text-ink"
-      >
-        <Plus className="h-4 w-4" /> Add set
-      </button>
+      <div className="flex divide-x divide-dashed divide-line-soft border-t border-dashed border-line-soft">
+        <button
+          type="button"
+          onClick={props.onAddSet}
+          className="flex h-11 flex-[2] items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-ink-2 transition-colors hover:bg-elevated hover:text-ink"
+        >
+          <Plus className="h-4 w-4" /> Add set
+        </button>
+        <button
+          type="button"
+          onClick={addWarmup}
+          className="flex h-11 flex-1 items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-[0.1em] text-warn transition-colors hover:bg-elevated"
+        >
+          <Plus className="h-4 w-4" /> Warm-up
+        </button>
+      </div>
     </Card>
   );
 }

@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Minus, Plus, X } from "lucide-react";
+import { Check, Minus, Plus, Trash2 } from "lucide-react";
 import type { WorkoutSet } from "@/types/workout";
 import { useUnits } from "@/providers/UnitsProvider";
 import { displayWeight, fromKg, toKg } from "@/lib/units/converter";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 
 interface Props {
-  index: number;
+  /** "1", "2"… for working sets, "W" for warm-ups. */
+  label: string;
   set: WorkoutSet;
+  /** Fixing up a saved workout: always editable, no complete button. */
+  editing?: boolean;
   suggestion?: { kg: number; reps: number };
   canDelete: boolean;
   /** Whether these numbers would beat the lifter's best (completing them shows the NEW PR burst). */
@@ -19,6 +24,8 @@ interface Props {
   onDelete: () => void;
   onComplete: () => void;
 }
+
+const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 /**
  * Input that keeps its own text state so the user can type intermediate values
@@ -114,12 +121,18 @@ const SPARKS = [0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => ({
   color: ["rgb(var(--lime))", "#ffb800", "rgb(var(--violet))", "rgb(var(--pink))"][i % 4],
 }));
 
-export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onChange, onDelete, onComplete }: Props) {
+/**
+ * One set: set label (opens the set menu: warm-up, effort, delete), weight and
+ * reps with −/+ steppers, and a separate check button to complete it.
+ */
+export function SetRow({ label, set, editing = false, suggestion, canDelete, beatsBest, isPR, onChange, onDelete, onComplete }: Props) {
   const { units } = useUnits();
   // Grey hints: last time's top set, per empty box.
   const hint = set.completed ? undefined : suggestion;
   const [burst, setBurst] = useState(0);
   const [popped, setPopped] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const name = set.warmup ? "Warm-up set" : `Set ${label}`;
 
   useEffect(() => {
     if (!burst) return;
@@ -157,7 +170,7 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
       if (!set.kg) patch.kg = suggestion.kg;
     }
     onChange(patch);
-    const pr = beatsBest({ kg: patch.kg ?? set.kg, reps: patch.reps ?? set.reps });
+    const pr = !set.warmup && beatsBest({ kg: patch.kg ?? set.kg, reps: patch.reps ?? set.reps });
     setPopped((n) => n + 1);
     if (pr) setBurst((n) => n + 1);
     navigator.vibrate?.(pr ? [20, 40, 30] : 12);
@@ -169,35 +182,28 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
   const input = "num min-w-0 flex-1 bg-transparent text-center text-base font-bold placeholder:text-ink-3 focus:outline-none";
 
   return (
-    <div className="relative grid grid-cols-[48px_1fr_1fr_24px] items-center gap-1">
+    <div className={`relative grid items-center gap-1.5 ${editing ? "grid-cols-[34px_1fr_1fr]" : "grid-cols-[34px_1fr_1fr_48px]"}`}>
+      {/* Set label: opens the set menu. */}
       <button
         type="button"
-        onClick={toggle}
-        aria-label={set.completed ? `Set ${index + 1} done. Mark incomplete` : `Complete set ${index + 1}`}
-        aria-pressed={set.completed}
-        className={`relative flex h-12 w-12 items-center justify-center border transition-colors ${
-          set.completed ? "border-lime bg-lime text-on-accent" : "border-line text-ink-2 hover:border-ink hover:text-ink"
+        onClick={() => setMenuOpen(true)}
+        aria-label={`${name} options`}
+        aria-haspopup="dialog"
+        className={`flex h-12 flex-col items-center justify-center border transition-colors ${
+          set.warmup ? "border-warn/60 bg-warn/10 text-warn" : "border-line-soft text-ink-2 hover:border-ink hover:text-ink"
         }`}
       >
-        {set.completed ? (
-          <Check key={popped} className="check-pop h-6 w-6" strokeWidth={3.5} />
-        ) : (
-          <span className="num text-base font-extrabold">{index + 1}</span>
-        )}
-        {isPR && (
-          <span className="absolute -right-1.5 -top-1.5 bg-[#ffb800] px-1 text-[9px] font-extrabold leading-4 text-on-accent">PR</span>
-        )}
+        <span className="num text-base font-extrabold leading-none">{label}</span>
+        {typeof set.rpe === "number" && <span className="num mt-1 text-[9px] font-bold leading-none text-violet">@{set.rpe}</span>}
       </button>
 
-      {set.completed ? (
+      {set.completed && !editing ? (
         <>
           <p className="num text-center text-base font-bold text-ink-2">
             {set.kg > 0 ? displayWeight(set.kg, units) : "—"}
             <span className="ml-1 text-xs font-semibold text-ink-3">{set.kg > 0 ? units : "bw"}</span>
           </p>
-          <p className="num text-center text-base font-bold text-ink-2">
-            × {set.reps}
-          </p>
+          <p className="num text-center text-base font-bold text-ink-2">× {set.reps}</p>
         </>
       ) : (
         <>
@@ -206,7 +212,7 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
               externalValue={displayKg}
               onValue={(v) => onChange({ kg: toKg(v, units) })}
               decimal
-              label={`Set ${index + 1} weight (${units})`}
+              label={`${name} weight (${units})`}
               placeholder={hint && hint.kg > 0 ? String(displayWeight(hint.kg, units, 1)) : units}
               className={input}
             />
@@ -216,7 +222,7 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
               externalValue={set.reps}
               onValue={(v) => onChange({ reps: Math.round(v) })}
               decimal={false}
-              label={`Set ${index + 1} reps`}
+              label={`${name} reps`}
               placeholder={hint ? String(hint.reps) : "reps"}
               className={input}
             />
@@ -224,17 +230,22 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
         </>
       )}
 
-      {canDelete ? (
+      {/* Complete: its own big target, so the set label stays a menu. */}
+      {!editing && (
         <button
           type="button"
-          onClick={onDelete}
-          aria-label={`Delete set ${index + 1}`}
-          className="flex h-12 w-6 items-center justify-center text-ink-3 transition-colors hover:text-over"
+          onClick={toggle}
+          aria-label={set.completed ? `${name} done. Mark incomplete` : `Complete ${name.toLowerCase()}`}
+          aria-pressed={set.completed}
+          className={`relative flex h-12 w-12 items-center justify-center border transition-colors ${
+            set.completed ? "border-lime bg-lime text-on-accent" : "border-line text-ink-3 hover:border-ink hover:text-ink"
+          }`}
         >
-          <X className="h-4 w-4" />
+          <Check key={popped} className={`h-6 w-6 ${popped ? "check-pop" : ""}`} strokeWidth={set.completed ? 3.5 : 2.5} />
+          {isPR && (
+            <span className="absolute -right-1.5 -top-1.5 bg-[#ffb800] px-1 text-[9px] font-extrabold leading-4 text-on-accent">PR</span>
+          )}
         </button>
-      ) : (
-        <span />
       )}
 
       {burst > 0 && (
@@ -259,6 +270,58 @@ export function SetRow({ index, set, suggestion, canDelete, beatsBest, isPR, onC
           New personal record
         </span>
       )}
+
+      <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title={name}>
+        <div className="space-y-5 px-5 pb-5 pt-2">
+          <div>
+            <p className="label mb-2">Type</p>
+            <div className="segmented" role="group" aria-label="Set type">
+              <button type="button" aria-pressed={!set.warmup} onClick={() => onChange({ warmup: false })}>
+                Working
+              </button>
+              <button type="button" aria-pressed={!!set.warmup} onClick={() => onChange({ warmup: true })}>
+                Warm-up
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-ink-2">Warm-ups are logged but don&apos;t count toward volume, sets or records.</p>
+          </div>
+
+          <div>
+            <p className="label mb-2">Effort (RPE)</p>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Rate of perceived exertion">
+              {RPE_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  aria-pressed={set.rpe === r}
+                  onClick={() => onChange({ rpe: set.rpe === r ? undefined : r })}
+                  className="chip num min-h-9 min-w-11 justify-center px-2"
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-ink-2">How hard it was: 10 = nothing left, 8 = two more reps in the tank.</p>
+          </div>
+
+          <div>
+            <Button
+              variant="danger"
+              block
+              disabled={!canDelete}
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete();
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> Delete set
+            </Button>
+            {!canDelete && (
+              <p className="mt-2 text-xs text-ink-3">An exercise needs at least one set. Remove the exercise from its ⋯ menu instead.</p>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

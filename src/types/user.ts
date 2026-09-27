@@ -10,6 +10,8 @@ export interface SyncedSettings {
   restTimerEnabled: boolean;
   trackedMuscles: string[];
   muscleTargets: Record<string, number>;
+  /** Training days per week (1-7). */
+  weeklyGoal: number;
 }
 
 export interface UserProfile {
@@ -27,4 +29,12 @@ export interface UserProfile {
   createdAt: Date;
   /** Written by SettingsSync; absent until the account's first sync. */
   settings?: SyncedSettings;
+  /** Short facts the coach learned in chat (preferences, equipment, injuries). */
+  coachMemory?: MemoryFact[];
+}
+
+export interface MemoryFact {
+  text: string;
+  /** When it was learned (ms epoch). */
+  at: number;
 }

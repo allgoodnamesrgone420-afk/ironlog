@@ -14,19 +14,22 @@ A modern, secure rewrite of IronLog. Built with Next.js 15 (App Router), TypeScr
 - Input validation on every write — no more NaN volumes.
 
 **Features**
+- Logger: pinned session bar (time, sets, volume, Finish), −/+ steppers on the plate grid, a separate complete button, warm-up sets and RPE per set (tap the set number), drag-to-reorder, supersets, finished exercises fold to one line
 - Rest timer (auto-start on set complete, vibration on finish)
-- 1RM estimator (Epley) with per-exercise progression chart
-- Progressive overload prompts (last session pre-fill + "+X kg" suggestions)
-- RPE / RIR per set
-- Body-part heatmap from weekly volume
+- Workout summary after Finish (time, volume, sets, records, muscles hit) with a shareable image card
+- Edit past workouts; delete with Undo
+- Exercise pages: history, best sets, best weight for 1-12 reps, estimated 1RM trend (Epley + Brzycki)
+- Progressive overload prompts (last session pre-fill + "try X" suggestions)
+- Weekly goal (training days) with a streak that forgives one missed week a month, and a weekly report card (ported from Bite)
+- Muscle balance against weekly targets, per muscle
 - Exercise library + autocomplete (prevents PR fragmentation)
-- Plate calculator
-- Imperial / metric toggle
-- Workout templates / routines
-- Body metrics tracking (weight log)
-- Streaks + weekly goal badge
-- AI Coach with persisted chat history across sessions
-- PWA — installable, basic offline shell
+- Plate calculator, imperial / metric toggle
+- Programs (PPL, 5/3/1, nSuns or your own)
+- Body: weight with a smoothed trend, body fat, measurements, progress photos (side-by-side compare)
+- AI Coach: streamed replies, remembers your preferences, builds today's workout around the muscles that are behind and opens it in the logger
+- AI workout builder that targets muscles you pick (or the ones behind this week)
+- Settings sync across devices
+- PWA — installable, works offline (writes queue and sync later)
 - CSV + JSON export
 
 **UI/UX**
@@ -58,7 +61,8 @@ npm run dev
 ## Deploying
 
 ```bash
-# Deploy security rules (one-time / on rule changes)
+# Deploy security rules (one-time / on rule changes).
+# Progress photos need the rules from this version (progressPhotos + progressPhotoData).
 npm run deploy:rules
 
 # Vercel handles the app. Set the env vars from .env.example in the Vercel project.
@@ -71,24 +75,29 @@ src/
 ├── app/                    Next.js App Router pages
 │   ├── (auth)/             Login, signup, forgot, verify
 │   ├── (app)/              Authenticated app shell
-│   │   ├── dashboard       Charts, PRs, heatmap, streaks
-│   │   ├── log             Workout logger (timer, RPE, plate calc, voice)
-│   │   ├── history         Past sessions
-│   │   ├── coach           AI chat
-│   │   ├── templates       Saved routines
-│   │   ├── body            Body metrics
-│   │   └── settings        Units, theme, export, account
-│   └── api/                Server routes (gemini, health)
+│   │   ├── dashboard       Today: week vs goal, program, routines
+│   │   ├── log             Workout logger (timer, RPE, warm-ups, plate calc)
+│   │   ├── workout         Summary + share card; /workout/edit edits a saved one
+│   │   ├── exercise        One exercise: history, records, 1RM trend
+│   │   ├── history         Past sessions, export
+│   │   ├── stats           Muscle balance, volume, 1RM, PRs, calendar
+│   │   ├── week            Weekly report card
+│   │   ├── coach           AI chat (streaming, memory, build a workout)
+│   │   ├── programs        Multi-week programs
+│   │   ├── body            Weight trend, body fat, measurements, photos
+│   │   └── settings        Goal, units, theme, bar, targets, account
+│   └── api/                Server routes (gemini, coach stream, health)
 ├── components/             React UI
 ├── hooks/                  Reusable state hooks
 ├── lib/                    Business logic
 │   ├── firebase            Client + Admin SDK
-│   ├── ai                  Gemini wrapper + system prompts
-│   ├── analytics           1RM, volume, streaks, muscle groups
-│   ├── data                Exercise library, repository
+│   ├── ai                  Gemini client, prompts, workout builder, coach digest
+│   ├── analytics           1RM, volume, PRs, goal streak, weekly report, weight trend
+│   ├── data                Exercise library
+│   ├── server              CORS + Gemini stream helpers for API routes
+│   ├── workout             Exercise-list edits, logger hand-off
 │   ├── units               kg/lb conversion
-│   ├── validation          Zod schemas
-│   └── voice               Speech → set parser
+│   └── validation          Zod schemas
 ├── providers/              React context providers
 └── types/                  Shared TypeScript types
 ```

@@ -2,29 +2,27 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Calendar, Trash2, ChevronDown, Dumbbell, Repeat, Download, Sparkles, Zap } from "lucide-react";
-import { useAuth } from "@/providers/AuthProvider";
+import { Calendar, Trash2, ChevronRight, Dumbbell, Repeat, Download, Sparkles, Zap, Pencil } from "lucide-react";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useToast } from "@/providers/ToastProvider";
 import { useUnits } from "@/providers/UnitsProvider";
-import { deleteWorkout } from "@/lib/firebase/repository";
+import { useDeleteWorkout } from "@/hooks/useDeleteWorkout";
 import { workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { callGemini } from "@/lib/ai/gemini-client";
 import { HISTORY_ANALYZER_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
-import { Confirm } from "@/components/ui/Confirm";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { HistorySkeleton } from "@/components/ui/PageSkeletons";
-import { formatWeight, fromKg } from "@/lib/units/converter";
+import { fromKg } from "@/lib/units/converter";
+import { formatDuration } from "@/lib/utils";
 
 export default function HistoryPage() {
-  const { user } = useAuth();
   const { workouts, loading } = useWorkouts();
   const { units } = useUnits();
   const toast = useToast();
   const bodyweightKg = useLatestBodyweight();
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const deleteWithUndo = useDeleteWorkout();
   const [summary, setSummary] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -34,28 +32,18 @@ export default function HistoryPage() {
     return { totalSessions, totalVolume };
   }, [workouts, bodyweightKg]);
 
-  const handleDelete = async (id: string) => {
-    if (!user) return;
-    try {
-      await deleteWorkout(user.uid, id);
-      toast.success("Workout deleted");
-    } catch {
-      toast.error("Couldn't delete. Try again.");
-    }
-  };
-
   const handleExportJSON = () => {
     const blob = new Blob([JSON.stringify(workouts, null, 2)], { type: "application/json" });
     download(blob, `ironlog_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
   const handleExportCSV = () => {
-    const rows: string[] = ["date,workout,exercise,set,kg,reps,rpe"];
+    const rows: string[] = ["date,workout,exercise,set,kg,reps,rpe,warmup"];
     for (const w of workouts) {
       const date = w.date.toISOString().slice(0, 10);
       for (const ex of w.exercises) {
         ex.sets.forEach((s, i) =>
-          rows.push([date, csv(w.name), csv(ex.name), i + 1, s.kg, s.reps, s.rpe ?? ""].join(",")),
+          rows.push([date, csv(w.name), csv(ex.name), i + 1, s.kg, s.reps, s.rpe ?? "", s.warmup ? 1 : 0].join(",")),
         );
       }
     }
@@ -156,15 +144,10 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-4" style={{ ["--i" as string]: 2 }}>
           {workouts.map((w) => {
-            const open = expanded === w.id;
             const volume = fromKg(workoutVolume(w, bodyweightKg), units);
             return (
               <div key={w.id} className="plunk face-card" style={{ ["--d" as string]: "4px" }}>
-                <button
-                  onClick={() => setExpanded(open ? null : w.id)}
-                  className="flex w-full items-center gap-3 p-4 text-left"
-                  aria-expanded={open}
-                >
+                <Link href={`/workout?id=${w.id}`} className="flex w-full items-center gap-3 p-4 text-left">
                   <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center bg-elevated leading-none" aria-hidden>
                     <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-ink-3">
                       {w.date.toLocaleDateString(undefined, { month: "short" })}
@@ -176,62 +159,38 @@ export default function HistoryPage() {
                     <span className="num mt-0.5 flex items-center gap-1 truncate text-xs text-ink-2">
                       <Calendar className="h-3 w-3 shrink-0" />
                       {w.date.toLocaleDateString(undefined, { weekday: "long" })} · {w.exercises.length} ex
+                      {w.durationSec ? ` · ${formatDuration(w.durationSec)}` : ""}
                     </span>
                   </span>
                   <span className="num shrink-0 text-right leading-none">
                     <span className="block text-xl font-extrabold tracking-tight">{Math.round(volume).toLocaleString()}</span>
                     <span className="label">{units}</span>
                   </span>
-                  <ChevronDown className={`h-[18px] w-[18px] shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} />
-                </button>
+                  <ChevronRight className="h-[18px] w-[18px] shrink-0 text-ink-3" />
+                </Link>
                 <div className="flex divide-x divide-line-soft border-t border-line-soft text-[11px] font-bold tracking-[0.08em]">
                   <Link
                     href={`/log?repeat=${w.id}`}
-                    aria-label="Repeat this workout"
+                    aria-label={`Repeat ${w.name}`}
                     className="flex h-10 flex-1 items-center justify-center gap-1.5 uppercase transition-colors hover:bg-elevated"
                   >
                     <Repeat className="h-3.5 w-3.5" /> Repeat
                   </Link>
-                  <Confirm
-                    title="Delete workout?"
-                    message={`This deletes "${w.name}" permanently. Your other workouts are safe.`}
-                    confirmLabel="Delete"
-                    destructive
-                    onConfirm={() => handleDelete(w.id)}
-                    trigger={(openConfirm) => (
-                      <button
-                        onClick={openConfirm}
-                        aria-label="Delete workout"
-                        className="flex h-10 flex-1 items-center justify-center gap-1.5 uppercase text-over transition-colors hover:bg-elevated"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </button>
-                    )}
-                  />
+                  <Link
+                    href={`/workout/edit?id=${w.id}`}
+                    aria-label={`Edit ${w.name}`}
+                    className="flex h-10 flex-1 items-center justify-center gap-1.5 uppercase transition-colors hover:bg-elevated"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Link>
+                  <button
+                    onClick={() => void deleteWithUndo(w)}
+                    aria-label={`Delete ${w.name}`}
+                    className="flex h-10 flex-1 items-center justify-center gap-1.5 uppercase text-over transition-colors hover:bg-elevated"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </button>
                 </div>
-                {open && (
-                  <div className="space-y-4 border-t border-line-soft bg-elevated/40 p-4">
-                    {w.exercises.map((ex) => (
-                      <div key={ex.id}>
-                        <p className="font-bold">{ex.name}</p>
-                        {ex.notes && <p className="mt-0.5 text-xs italic text-ink-2">&ldquo;{ex.notes}&rdquo;</p>}
-                        <div className="mt-2 grid grid-cols-3 gap-1.5">
-                          {ex.sets.map((s, i) => (
-                            <div key={i} className="border border-line-soft bg-surface p-2 text-center">
-                              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">Set {i + 1}</p>
-                              <p className="num text-sm">
-                                <span className="font-bold">{formatWeight(s.kg, units, 0)}</span> × {s.reps}
-                                {typeof s.rpe === "number" && (
-                                  <span className="ml-1 text-[10px] font-bold text-violet">RPE {s.rpe}</span>
-                                )}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             );
           })}

@@ -1,5 +1,6 @@
 import type { Workout, MuscleGroup } from "@/types/workout";
 import { EXERCISE_LIBRARY, findExercise } from "@/lib/data/exercises";
+import { isWorkSet } from "./sets";
 
 export type MuscleVolume = Record<MuscleGroup, number>;
 
@@ -15,7 +16,7 @@ export function muscleSetsThisWeek(workouts: Workout[]): MuscleVolume {
   const totals: MuscleVolume = { ...empty };
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
-      const numSets = ex.sets?.filter((s) => s.completed).length ?? 0;
+      const numSets = ex.sets?.filter(isWorkSet).length ?? 0;
       if (numSets === 0) continue;
 
       // Prefer the curated library; fall back to user-tagged muscles on custom exercises.

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Link as LinkIcon, Plus, Sparkles } from "lucide-react";
+import { ArrowUpDown, Link as LinkIcon, Plus, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useDraft } from "@/hooks/useDraft";
@@ -15,13 +15,20 @@ import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { resolveDay, nextCursor, clampCursor } from "@/lib/programs/resolve";
 import { workoutVolume } from "@/lib/analytics/volume";
 import { bestSetFor, lastSessionFor } from "@/lib/analytics/personal-records";
+import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { findExercise } from "@/lib/data/exercises";
+import {
+  addToSuperset, appendSet, blankExercise, findPastNote, groupBySupersets, patchExercise, patchSet, removeExercise, removeSet,
+} from "@/lib/workout/editing";
+import { takeStashedWorkout } from "@/lib/workout/handoff";
 import { uid } from "@/lib/utils";
-import type { Exercise, WorkoutSet } from "@/types/workout";
+import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import type { ProgramRef } from "@/types/program";
 import { Button } from "@/components/ui/Button";
 import { Confirm } from "@/components/ui/Confirm";
+import { Modal } from "@/components/ui/Modal";
 import { ExerciseCard } from "@/components/workout/ExerciseCard";
+import { ReorderSheet } from "@/components/workout/ReorderSheet";
 import { SessionBar } from "@/components/workout/SessionBar";
 import { useTimer } from "@/providers/TimerProvider";
 import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
@@ -35,16 +42,8 @@ interface Draft {
   startedAt: number;
   /** Set when this session was started from a program day. */
   programRef?: ProgramRef;
-}
-
-function blankExercise(name = ""): Exercise {
-  return {
-    id: uid(),
-    name,
-    notes: "",
-    restSec: 90,
-    sets: [{ id: uid(), kg: 0, reps: 0, completed: false }],
-  };
+  /** Muscles an AI-built session is aimed at. */
+  targetMuscles?: MuscleGroup[];
 }
 
 /** A draft opened this long ago with no set done yet restarts its clock. */
@@ -74,24 +73,36 @@ function LogPageInner() {
   const { programs } = usePrograms();
   const bodyweightKg = useLatestBodyweight();
 
-  const [draft, setDraft, clearDraft] = useDraft<Draft>(user?.uid, "draft", {
+  const [draft, setDraft, clearDraft, hydrated] = useDraft<Draft>(user?.uid, "draft", {
     name: "Evening Lift",
     exercises: [blankExercise("Barbell Bench Press")],
     startedAt: Date.now(),
   });
 
   const [aiOpen, setAiOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** A new session waiting for the go-ahead to replace one that has sets done. */
+  const [pending, setPending] = useState<Draft | null>(null);
   const timer = useTimer();
   const { enabled: timerEnabled } = useRestTimerEnabled();
+
+  /** Starts `next`, asking first when that would throw away completed sets. */
+  const offerDraft = (next: Draft) => {
+    if (hasCompletedSet(draft.exercises)) setPending(next);
+    else setDraft(next);
+  };
+
+  // The pre-fills below wait for the saved draft to load, so the "replace?"
+  // check sees the sets you've actually done.
 
   // Handle ?repeat=workoutId pre-fill
   useEffect(() => {
     const repeatId = params.get("repeat");
-    if (!repeatId) return;
+    if (!repeatId || !hydrated) return;
     const source = workouts.find((w) => w.id === repeatId);
     if (!source) return;
-    setDraft({
+    offerDraft({
       name: source.name,
       startedAt: Date.now(),
       exercises: source.exercises.map((ex) => ({
@@ -102,18 +113,18 @@ function LogPageInner() {
     });
     router.replace("/log");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, workouts.length]);
+  }, [params, workouts.length, hydrated]);
 
   // Handle ?program=programId pre-fill — resolves the program's current cursor day.
   useEffect(() => {
     const programId = params.get("program");
-    if (!programId) return;
+    if (!programId || !hydrated) return;
     const program = programs.find((p) => p.id === programId);
     if (!program) return;
     const resolved = resolveDay(program);
     if (!resolved) return;
     const c = clampCursor(program, program.cursor);
-    setDraft({
+    offerDraft({
       name: resolved.name,
       startedAt: Date.now(),
       exercises: resolved.exercises,
@@ -127,7 +138,16 @@ function LogPageInner() {
     });
     router.replace("/log");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params, programs.length]);
+  }, [params, programs.length, hydrated]);
+
+  // Handle ?handoff=1: a workout the coach built for today.
+  useEffect(() => {
+    if (!params.get("handoff") || !hydrated) return;
+    const w = takeStashedWorkout();
+    if (w) offerDraft({ name: w.name, exercises: w.exercises, targetMuscles: w.targetMuscles, startedAt: Date.now() });
+    router.replace("/log");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, hydrated]);
 
   const groups = useMemo(() => groupBySupersets(draft.exercises), [draft.exercises]);
 
@@ -155,51 +175,15 @@ function LogPageInner() {
   const editExercises = (fn: (list: Exercise[]) => Exercise[]) =>
     setDraft((d) => ({ ...d, exercises: fn(d.exercises) }));
 
-  const addExercise = () => editExercises((list) => [...list, blankExercise()]);
-
-  const addSuperset = (afterId: string, supersetId?: string | null) => {
-    const sid = supersetId ?? uid();
-    editExercises((list) =>
-      list.flatMap((ex) => (ex.id === afterId ? [{ ...ex, supersetId: sid }, { ...blankExercise(), supersetId: sid }] : [ex])),
-    );
-  };
-
-  const removeExercise = (id: string) => editExercises((list) => list.filter((e) => e.id !== id));
-
-  /** Move an entire group (single exercise OR full superset) up or down. */
-  const moveGroup = (groupIndex: number, direction: -1 | 1) =>
-    editExercises((list) => {
-      const grouped = groupBySupersets(list);
-      const target = groupIndex + direction;
-      if (target < 0 || target >= grouped.length) return list;
-      [grouped[groupIndex], grouped[target]] = [grouped[target]!, grouped[groupIndex]!];
-      return grouped.flat();
-    });
-
-  const updateExercise = (id: string, patch: Partial<Exercise>) =>
-    editExercises((list) => list.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-
-  const addSet = (exId: string) =>
-    editExercises((list) =>
-      list.map((e) => {
-        if (e.id !== exId) return e;
-        const prev = e.sets[e.sets.length - 1];
-        return { ...e, sets: [...e.sets, { id: uid(), kg: prev?.kg ?? 0, reps: prev?.reps ?? 0, completed: false }] };
-      }),
-    );
+  const updateExercise = (id: string, patch: Partial<Exercise>) => editExercises((list) => patchExercise(list, id, patch));
 
   const updateSet = (exId: string, setId: string, patch: Partial<WorkoutSet>) =>
     setDraft((d) => {
-      const exercises = d.exercises.map((e) =>
-        e.id !== exId ? e : { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) },
-      );
+      const exercises = patchSet(d.exercises, exId, setId, patch);
       // First set of a draft that sat open for hours: the session starts now.
       const restart = patch.completed && !hasCompletedSet(d.exercises) && Date.now() - d.startedAt > STALE_DRAFT_MS;
       return { ...d, exercises, startedAt: restart ? Date.now() : d.startedAt };
     });
-
-  const removeSet = (exId: string, setId: string) =>
-    editExercises((list) => list.map((e) => (e.id !== exId ? e : { ...e, sets: e.sets.filter((s) => s.id !== setId) })));
 
   // ─── Finish workout ────────────────────────────────────────────────
   const finish = async () => {
@@ -254,8 +238,8 @@ function LogPageInner() {
 
       clearDraft();
       timer.cancel();
-      toast.success(saved === "queued" ? "Workout saved. It will sync when you're back online." : "Workout saved");
-      router.push("/dashboard");
+      if (saved.status === "queued") toast.info("Saved on this device. It will sync when you're back online.");
+      router.push(`/workout?id=${saved.id}&done=1`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to save.";
       toast.error(msg);
@@ -299,6 +283,17 @@ function LogPageInner() {
         </button>
       </header>
 
+      {draft.targetMuscles && draft.targetMuscles.length > 0 && (
+        <p className="-mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-2">
+          <span className="label">Targets</span>
+          {draft.targetMuscles.map((m) => (
+            <span key={m} className="tag border border-violet/60 text-violet">
+              {MUSCLE_LABELS[m]}
+            </span>
+          ))}
+        </p>
+      )}
+
       <SessionBar
         startedAt={draft.startedAt}
         setsDone={setsDone}
@@ -311,7 +306,7 @@ function LogPageInner() {
 
       {/* Exercise list */}
       <div className="space-y-4">
-        {groups.map((group, gi) => {
+        {groups.map((group) => {
           const isSuper = group.length > 1;
           return (
             <div key={group[0]!.id} className={isSuper ? "space-y-3 border-l-[6px] border-l-[#ffb800] pl-3" : ""}>
@@ -335,8 +330,6 @@ function LogPageInner() {
                     prevBest={bestSetFor(workouts, exercise.name)}
                     leadsGroup={ix === 0}
                     inSuperset={isSuper}
-                    canMoveUp={gi > 0}
-                    canMoveDown={gi < groups.length - 1}
                     onNameChange={(name) => {
                       const patch: Partial<Exercise> = { name };
                       if (!exercise.notes?.trim() && name.trim()) {
@@ -352,22 +345,22 @@ function LogPageInner() {
                       }
                     }}
                     onUpdate={(patch) => updateExercise(exercise.id, patch)}
-                    onAddSet={() => addSet(exercise.id)}
+                    onAddSet={() => editExercises((list) => appendSet(list, exercise.id))}
                     onUpdateSet={(setId, patch) => updateSet(exercise.id, setId, patch)}
-                    onRemoveSet={(setId) => removeSet(exercise.id, setId)}
+                    onRemoveSet={(setId) => editExercises((list) => removeSet(list, exercise.id, setId))}
                     onSetComplete={() => {
                       if (timerEnabled) timer.start(exercise.restSec ?? 90);
                     }}
-                    onMove={(direction) => moveGroup(gi, direction)}
-                    onSuperset={() => addSuperset(exercise.id, exercise.supersetId ?? null)}
-                    onRemove={() => removeExercise(exercise.id)}
+                    onReorder={groups.length > 1 ? () => setReorderOpen(true) : undefined}
+                    onSuperset={() => editExercises((list) => addToSuperset(list, exercise.id, exercise.supersetId))}
+                    onRemove={() => editExercises((list) => removeExercise(list, exercise.id))}
                   />
                 ))}
                 {isSuper && (
                   <button
                     onClick={() => {
                       const tail = group[group.length - 1]!;
-                      addSuperset(tail.id, tail.supersetId);
+                      editExercises((list) => addToSuperset(list, tail.id, tail.supersetId));
                     }}
                     className="flex h-11 w-full items-center justify-center gap-2 border border-dashed border-warn/70 text-xs font-bold uppercase tracking-[0.1em] text-warn transition-colors hover:bg-warn/10"
                   >
@@ -381,67 +374,77 @@ function LogPageInner() {
       </div>
 
       <div className="flex flex-col gap-3 pt-1">
-        <Button onClick={addExercise} variant="secondary" size="lg" block>
+        <Button onClick={() => editExercises((list) => [...list, blankExercise()])} variant="secondary" size="lg" block>
           <Plus className="h-5 w-5" /> Add exercise
         </Button>
-        <Confirm
-          title="Discard draft?"
-          message="This clears all unsaved sets for this session."
-          confirmLabel="Discard"
-          destructive
-          onConfirm={resetDraft}
-          trigger={(open) => (
+        <div className="flex items-center justify-center gap-2">
+          {groups.length > 1 && (
             <button
-              onClick={open}
-              className="mx-auto min-h-[44px] px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3 transition-colors hover:text-over"
+              onClick={() => setReorderOpen(true)}
+              className="flex min-h-[44px] items-center gap-1.5 px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-2 transition-colors hover:text-ink"
             >
-              Discard draft
+              <ArrowUpDown className="h-3.5 w-3.5" /> Reorder
             </button>
           )}
-        />
+          <Confirm
+            title="Discard draft?"
+            message="This clears all unsaved sets for this session."
+            confirmLabel="Discard"
+            destructive
+            onConfirm={resetDraft}
+            trigger={(open) => (
+              <button
+                onClick={open}
+                className="min-h-[44px] px-3 text-[11px] font-bold uppercase tracking-[0.1em] text-ink-3 transition-colors hover:text-over"
+              >
+                Discard draft
+              </button>
+            )}
+          />
+        </div>
       </div>
+
+      <ReorderSheet
+        open={reorderOpen}
+        onClose={() => setReorderOpen(false)}
+        exercises={draft.exercises}
+        onChange={(next) => editExercises(() => next)}
+      />
 
       <AIGenerateModal
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         recent={workouts}
-        onApply={({ name, exercises }) => setDraft((d) => ({ ...d, name, exercises, startedAt: Date.now() }))}
+        onApply={({ name, exercises, targetMuscles }) => offerDraft({ name, exercises, targetMuscles, startedAt: Date.now() })}
       />
+
+      <Modal open={pending !== null} onClose={() => setPending(null)} title="Replace this session?">
+        <div className="space-y-5 px-5 pb-5 pt-2">
+          <p className="text-sm text-ink-2">
+            You have {setsDone} set{setsDone === 1 ? "" : "s"} done in &ldquo;{draft.name}&rdquo;. Starting &ldquo;{pending?.name}&rdquo; clears
+            them. Finish this session first to keep them.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={() => setPending(null)}>
+              Keep current
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (pending) setDraft(pending);
+                timer.cancel();
+                setPending(null);
+              }}
+            >
+              Replace
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Timer UI is page-scoped (only visible here). State lives globally in
           TimerProvider so it keeps ticking when you navigate away. */}
       <RestTimer />
     </div>
   );
-}
-
-function groupBySupersets(exercises: Exercise[]): Exercise[][] {
-  const groups: Exercise[][] = [];
-  let current: Exercise[] = [];
-  exercises.forEach((ex, i) => {
-    const prev = exercises[i - 1];
-    if (i === 0) current.push(ex);
-    else if (ex.supersetId && prev && prev.supersetId === ex.supersetId) current.push(ex);
-    else {
-      groups.push(current);
-      current = [ex];
-    }
-  });
-  if (current.length) groups.push(current);
-  return groups;
-}
-
-/** Finds the most recent non-empty notes for an exercise name across past workouts. */
-function findPastNote(workouts: { date: Date; exercises: Exercise[] }[], name: string): string | undefined {
-  const target = name.trim().toLowerCase();
-  if (!target) return undefined;
-  const sorted = [...workouts].sort((a, b) => b.date.getTime() - a.date.getTime());
-  for (const w of sorted) {
-    for (const ex of w.exercises) {
-      if (ex.name.trim().toLowerCase() === target && ex.notes?.trim()) {
-        return ex.notes;
-      }
-    }
-  }
-  return undefined;
 }

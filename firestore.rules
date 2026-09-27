@@ -53,6 +53,14 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    // ─── Progress photos (thumbnail + full image, split for size) ─
+    match /users/{uid}/progressPhotos/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+    match /users/{uid}/progressPhotoData/{doc} {
+      allow read, write: if isOwner(uid);
+    }
+
     // ─── Coach chat history ──────────────────────────────────────
     match /users/{uid}/coachChats/{doc} {
       allow read, write: if isOwner(uid);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Trophy, TrendingUp } from "lucide-react";
 import type { PRRow } from "@/lib/analytics/personal-records";
 import { useUnits } from "@/providers/UnitsProvider";
@@ -28,7 +29,12 @@ export function PRCards({ records }: { records: PRRow[] }) {
             const displayKg = displayWeight(r.kg, units, 1);
             const displayDelta = r.deltaKg ? fromKg(r.deltaKg, units) : 0;
             return (
-              <div key={r.name} className="plunk face-card w-[168px] shrink-0 p-4" style={{ ["--d" as string]: "4px" }}>
+              <Link
+                key={r.name}
+                href={`/exercise?name=${encodeURIComponent(r.name)}`}
+                className="plunk face-card block w-[168px] shrink-0 p-4 transition-transform active:translate-x-1 active:translate-y-1"
+                style={{ ["--d" as string]: "4px" }}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <p className="label truncate">{r.name}</p>
                   {idx === 0 && <span className="tag solid shrink-0 bg-[#ffb800] text-on-accent">Top</span>}
@@ -51,7 +57,7 @@ export function PRCards({ records }: { records: PRRow[] }) {
                     </span>
                   )}
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

@@ -1,4 +1,5 @@
 import type { Workout, WorkoutSet } from "@/types/workout";
+import { isWorkSet } from "./sets";
 import { estimate1RM } from "./onerm";
 
 export interface PRRow {
@@ -22,7 +23,7 @@ export function beats(a: { kg: number; reps: number }, b: { kg: number; reps: nu
 function bestSet(sets: WorkoutSet[] | undefined, date: Date): Entry | null {
   let best: Entry | null = null;
   for (const s of sets ?? []) {
-    if (!s.completed) continue;
+    if (!isWorkSet(s)) continue;
     if (!Number.isFinite(s.kg) || !Number.isFinite(s.reps)) continue;
     if (s.kg <= 0) continue;
     if (beats(s, best)) best = { kg: s.kg, reps: s.reps, date };
@@ -85,7 +86,7 @@ export function lastSessionFor(workouts: Workout[], exerciseName: string): { kg:
     for (const ex of w.exercises ?? []) {
       if (ex.name?.trim().toLowerCase() === target) {
         const top = (ex.sets ?? [])
-          .filter((s) => s.completed)
+          .filter(isWorkSet)
           .reduce<{ kg: number; reps: number } | null>(
             (acc, s) => (!acc || s.kg > acc.kg ? { kg: s.kg, reps: s.reps } : acc),
             null,
@@ -134,4 +135,36 @@ export function bestSetFor(workouts: Workout[], exerciseName: string): { kg: num
     }
   }
   return best ? { kg: best.kg, reps: best.reps } : null;
+}
+
+export interface WorkoutPR {
+  name: string;
+  kg: number;
+  reps: number;
+  /** The record it beat. */
+  prev: { kg: number; reps: number };
+}
+
+/**
+ * Records set in `workout`: exercises whose best working set beats every
+ * earlier session. First-ever attempts don't count.
+ */
+export function prsInWorkout(workouts: Workout[], workout: Workout): WorkoutPR[] {
+  const earlier = workouts.filter((w) => w.id !== workout.id && w.date < workout.date);
+  const out: WorkoutPR[] = [];
+  const seen = new Set<string>();
+  for (const ex of workout.exercises ?? []) {
+    const name = ex.name?.trim();
+    const key = name?.toLowerCase();
+    if (!name || !key || seen.has(key)) continue;
+    seen.add(key);
+    // Best across every entry of this exercise in the session (it can appear twice).
+    const best = workout.exercises
+      .filter((e) => e.name?.trim().toLowerCase() === key)
+      .map((e) => bestSet(e.sets, workout.date))
+      .reduce<Entry | null>((b, s) => (s && beats(s, b) ? s : b), null);
+    const prev = bestSetFor(earlier, name);
+    if (best && prev && beats(best, prev)) out.push({ name, kg: best.kg, reps: best.reps, prev });
+  }
+  return out;
 }

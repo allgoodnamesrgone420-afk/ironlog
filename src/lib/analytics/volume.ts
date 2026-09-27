@@ -11,6 +11,7 @@ import type { Workout, Exercise } from "@/types/workout";
  */
 export function exerciseVolume(ex: Exercise, bodyweightKg = 0): number {
   return (ex.sets ?? []).reduce((acc, s) => {
+    if (s.warmup) return acc; // warm-ups don't count toward volume
     const kg = Number.isFinite(s.kg) ? s.kg : 0;
     const reps = Number.isFinite(s.reps) ? s.reps : 0;
     const load = kg > 0 ? kg : bodyweightKg > 0 ? bodyweightKg : 1;
@@ -22,6 +23,7 @@ export function workoutVolume(w: Pick<Workout, "exercises">, bodyweightKg = 0): 
   return (w.exercises ?? []).reduce((acc, ex) => acc + exerciseVolume(ex, bodyweightKg), 0);
 }
 
+/** Working sets (warm-ups excluded). Saved workouts only hold completed sets. */
 export function workoutSetCount(w: Pick<Workout, "exercises">): number {
-  return (w.exercises ?? []).reduce((acc, ex) => acc + (ex.sets?.length ?? 0), 0);
+  return (w.exercises ?? []).reduce((acc, ex) => acc + (ex.sets ?? []).filter((s) => !s.warmup).length, 0);
 }

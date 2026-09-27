@@ -62,6 +62,9 @@ function resolveDb(a: FirebaseApp): Firestore {
   try {
     return initializeFirestore(a, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      // Optional fields left undefined (a set without RPE, an exercise without
+      // notes) are skipped instead of failing the whole write.
+      ignoreUndefinedProperties: true,
     });
   } catch {
     // Already initialized (e.g. hot reload in dev).

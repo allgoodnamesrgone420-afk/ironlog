@@ -8,6 +8,7 @@ import { useMuscleTargets, type DisplayMuscle } from "@/hooks/useMuscleTargets";
 import { CountUp } from "@/components/ui/CountUp";
 import { useTrackedMuscles } from "@/hooks/useTrackedMuscles";
 import { useSeen } from "@/hooks/useSeen";
+import { isWorkSet } from "@/lib/analytics/sets";
 
 export interface MuscleRowDef {
   key: DisplayMuscle;
@@ -51,7 +52,7 @@ export function MuscleBalance({ workouts }: { workouts: Workout[] }) {
 
     for (const w of thisWeek) {
       for (const ex of w.exercises ?? []) {
-        const completed = ex.sets.filter((s) => s.completed).length;
+        const completed = ex.sets.filter(isWorkSet).length;
         if (completed === 0) continue;
 
         const def = findExercise(ex.name);

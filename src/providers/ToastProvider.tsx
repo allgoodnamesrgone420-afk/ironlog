@@ -1,21 +1,30 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { uid } from "@/lib/utils";
 
 type Variant = "success" | "error" | "info";
+
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   variant: Variant;
+  action?: ToastAction;
 }
 
 interface ToastCtx {
-  show: (message: string, variant?: Variant) => void;
+  show: (message: string, variant?: Variant, opts?: { action?: ToastAction; durationMs?: number }) => void;
   success: (m: string) => void;
   error: (m: string) => void;
   info: (m: string) => void;
+  /** A success toast with an Undo button, kept up a little longer. */
+  undo: (message: string, onUndo: () => void) => void;
 }
 
 const Ctx = createContext<ToastCtx>({
@@ -23,6 +32,7 @@ const Ctx = createContext<ToastCtx>({
   success: () => {},
   error: () => {},
   info: () => {},
+  undo: () => {},
 });
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -32,21 +42,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((cur) => cur.filter((t) => t.id !== id));
   }, []);
 
-  const show = useCallback(
-    (message: string, variant: Variant = "info") => {
+  const show = useCallback<ToastCtx["show"]>(
+    (message, variant = "info", opts) => {
       const id = uid();
-      setToasts((cur) => [...cur, { id, message, variant }]);
-      window.setTimeout(() => dismiss(id), 4000);
+      setToasts((cur) => [...cur, { id, message, variant, action: opts?.action }]);
+      window.setTimeout(() => dismiss(id), opts?.durationMs ?? (opts?.action ? 6000 : 4000));
     },
     [dismiss],
   );
 
-  const api: ToastCtx = {
-    show,
-    success: (m) => show(m, "success"),
-    error: (m) => show(m, "error"),
-    info: (m) => show(m, "info"),
-  };
+  const api = useMemo<ToastCtx>(
+    () => ({
+      show,
+      success: (m) => show(m, "success"),
+      error: (m) => show(m, "error"),
+      info: (m) => show(m, "info"),
+      undo: (m, onUndo) => show(m, "success", { action: { label: "Undo", onClick: onUndo } }),
+    }),
+    [show],
+  );
 
   return (
     <Ctx.Provider value={api}>
@@ -73,6 +87,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-violet" />
             )}
             <span className="flex-1">{t.message}</span>
+            {t.action && (
+              <button
+                onClick={() => {
+                  dismiss(t.id);
+                  t.action!.onClick();
+                }}
+                className="-my-1 shrink-0 border border-ink px-2 py-1 text-[11px] font-extrabold uppercase tracking-[0.1em] transition-colors hover:bg-lime hover:text-on-accent"
+              >
+                {t.action.label}
+              </button>
+            )}
             <button
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss"
