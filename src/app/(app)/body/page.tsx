@@ -344,6 +344,7 @@ function PhotosCard() {
   const [comparing, setComparing] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [pair, setPair] = useState<[ProgressPhoto, ProgressPhoto] | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -351,6 +352,7 @@ function PhotosCard() {
       user.uid,
       (p) => {
         setPhotos(p);
+        setBlocked(false);
         setLoaded(true);
       },
       () => {
@@ -358,7 +360,22 @@ function PhotosCard() {
         setLoaded(true);
       },
     );
-  }, [user]);
+  }, [user, attempt]);
+
+  // A refused listener never retries, and newly published rules can take a
+  // minute to apply: keep checking while blocked, and when the app comes back.
+  useEffect(() => {
+    if (!blocked) return;
+    const retry = () => {
+      if (document.visibilityState === "visible") setAttempt((n) => n + 1);
+    };
+    const id = window.setInterval(retry, 15_000);
+    document.addEventListener("visibilitychange", retry);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", retry);
+    };
+  }, [blocked]);
 
   const add = async (file: File) => {
     if (!user) return;
@@ -424,9 +441,19 @@ function PhotosCard() {
       {comparing && <p className="mt-2 text-xs text-ink-2">Pick two photos to see them side by side.</p>}
 
       {blocked ? (
-        <p className="mt-3 border border-warn/60 bg-warn/10 p-3 text-xs">
-          Photos need the updated database rules. Deploy them once with <code className="font-bold">npm run deploy:rules</code>.
-        </p>
+        <div className="mt-3 border border-warn/60 bg-warn/10 p-3 text-xs">
+          <p>
+            Photos need the updated database rules (<code className="font-bold">firestore.rules</code>, see the README). Just published them? This clears by
+            itself within a minute.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAttempt((n) => n + 1)}
+            className="mt-2 font-bold uppercase tracking-[0.08em] underline decoration-2 underline-offset-4"
+          >
+            Check again
+          </button>
+        </div>
       ) : !loaded ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Skeleton className="aspect-[3/4]" />

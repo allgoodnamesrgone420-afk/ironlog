@@ -63,6 +63,9 @@ npm run dev
 ```bash
 # Deploy security rules (one-time / on rule changes).
 # Progress photos need the rules from this version (progressPhotos + progressPhotoData).
+# Easiest: Firebase console → Firestore Database → Rules, paste firestore.rules, Publish.
+# Or from a terminal, with the Firebase CLI and your project picked once:
+npm install -g firebase-tools && firebase login && firebase use --add
 npm run deploy:rules
 
 # Vercel handles the app. Set the env vars from .env.example in the Vercel project.
