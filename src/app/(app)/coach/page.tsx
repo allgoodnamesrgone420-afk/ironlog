@@ -10,7 +10,7 @@ import { useUnits } from "@/providers/UnitsProvider";
 import { useMuscleTargets } from "@/hooks/useMuscleTargets";
 import { useCoachMemory } from "@/hooks/useCoachMemory";
 import { useBodyMetrics } from "@/hooks/useBodyMetrics";
-import { WEEKLY_GOAL_SETTING, useSetting } from "@/lib/settings";
+import { BUILDER_EXERCISES_SETTING, WEEKLY_GOAL_SETTING, useSetting } from "@/lib/settings";
 import { appendCoachMessage, newCoachMessageId, subscribeToCoachMessages } from "@/lib/firebase/repository";
 import { streamCoach } from "@/lib/ai/gemini-client";
 import { coachContext, memoryEdits, visibleReply } from "@/lib/ai/coach";
@@ -52,6 +52,7 @@ export default function CoachPage() {
   const memory = useCoachMemory();
   const { metrics } = useBodyMetrics();
   const [goal] = useSetting(WEEKLY_GOAL_SETTING);
+  const [exerciseCount] = useSetting(BUILDER_EXERCISES_SETTING);
   const [messages, setMessages] = useState<CoachMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");
@@ -154,7 +155,7 @@ export default function CoachPage() {
     const id = newCoachMessageId(user.uid);
     setLive({ id, text: "", label: "Building your session" });
     try {
-      const plan = await generateWorkout({ request: "", focus: autoFocus(stats), auto: true, workouts, stats, memory: memory.texts, units });
+      const plan = await generateWorkout({ request: "", focus: autoFocus(stats), auto: true, count: exerciseCount, workouts, stats, memory: memory.texts, units });
       // The card shows the name, targets and exercises; the text says why.
       const text = plan.why || `Here's ${plan.name} for today.`;
       void appendCoachMessage(user.uid, "model", text, {

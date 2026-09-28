@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RotateCcw, Sparkles, Target } from "lucide-react";
+import { ListOrdered, RotateCcw, Sparkles, Target } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/providers/ToastProvider";
@@ -10,8 +10,9 @@ import { useMuscleTargets } from "@/hooks/useMuscleTargets";
 import { useCoachMemory } from "@/hooks/useCoachMemory";
 import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
 import { displayWeight } from "@/lib/units/converter";
+import { BUILDER_EXERCISES_SETTING, useSetting } from "@/lib/settings";
 import {
-  FOCUS_MUSCLES, autoFocus, exerciseMuscles, generateWorkout, muscleStatus, type BuiltWorkout,
+  FOCUS_MUSCLES, autoFocus, exerciseMuscles, generateWorkout, muscleStatus, usualSessionSize, type BuiltWorkout,
 } from "@/lib/ai/workout-builder";
 import type { Exercise, MuscleGroup, Workout } from "@/types/workout";
 
@@ -23,11 +24,13 @@ interface Props {
 }
 
 const label = (m: MuscleGroup) => MUSCLE_LABELS[m];
+const COUNTS = [4, 5, 6, 7, 8, 9, 10];
 
 /**
  * Builds a session with the coach. You pick the muscles, or Auto picks the
- * ones furthest behind this week that have rested; the plan shows what each
- * exercise targets before it replaces anything.
+ * ones furthest behind this week that have rested, and how many exercises
+ * (Auto matches your usual session); the plan shows what each exercise
+ * targets before it replaces anything.
  */
 export function AIGenerateModal({ open, onClose, recent, onApply }: Props) {
   const toast = useToast();
@@ -35,6 +38,8 @@ export function AIGenerateModal({ open, onClose, recent, onApply }: Props) {
   const { targets } = useMuscleTargets();
   const memory = useCoachMemory();
   const [picked, setPicked] = useState<MuscleGroup[]>([]);
+  // Remembered between sessions, and used by the coach's Build workout too.
+  const [count, setCount] = useSetting(BUILDER_EXERCISES_SETTING);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<BuiltWorkout | null>(null);
@@ -42,13 +47,14 @@ export function AIGenerateModal({ open, onClose, recent, onApply }: Props) {
   const stats = useMemo(() => muscleStatus(recent, targets), [recent, targets]);
   const auto = useMemo(() => autoFocus(stats), [stats]);
   const focus = picked.length ? picked : auto;
+  const usual = useMemo(() => usualSessionSize(recent), [recent]);
 
   const toggle = (m: MuscleGroup) => setPicked((cur) => (cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m]));
 
   const generate = async () => {
     setBusy(true);
     try {
-      setPlan(await generateWorkout({ request: prompt, focus, auto: picked.length === 0, workouts: recent, stats, memory: memory.texts, units }));
+      setPlan(await generateWorkout({ request: prompt, focus, auto: picked.length === 0, count, workouts: recent, stats, memory: memory.texts, units }));
     } catch {
       toast.error("Couldn't build a workout. Try again, or simplify the request.");
     } finally {
@@ -146,6 +152,34 @@ export function AIGenerateModal({ open, onClose, recent, onApply }: Props) {
                 <>
                   Building around <strong className="text-ink">{picked.map(label).join(", ")}</strong>.
                 </>
+              )}
+            </p>
+          </div>
+          <div>
+            <p className="label mb-2 flex items-center gap-1.5">
+              <ListOrdered className="h-3.5 w-3.5" /> Exercises
+            </p>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Number of exercises">
+              <button type="button" aria-pressed={count === null} onClick={() => setCount(null)} className="chip min-h-8 px-2.5 text-xs">
+                Auto
+              </button>
+              {COUNTS.map((n) => (
+                <button key={n} type="button" aria-pressed={count === n} onClick={() => setCount(n)} className="chip num min-h-8 min-w-8 justify-center px-2 text-xs">
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-ink-2" aria-live="polite">
+              {count !== null ? (
+                <>
+                  Exactly <strong className="text-ink">{count} exercises</strong>.
+                </>
+              ) : usual ? (
+                <>
+                  Auto matches your usual session: <strong className="text-ink">{usual} exercises</strong>.
+                </>
+              ) : (
+                <>Auto plans 5 to 7 exercises.</>
               )}
             </p>
           </div>

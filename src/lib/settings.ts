@@ -118,3 +118,14 @@ export const WEEKLY_GOAL_SETTING: SettingDef<number> = {
   },
   serialize: (v) => String(v),
 };
+
+/** How many exercises the AI builder plans; null means Auto (the lifter's usual session size). */
+export const BUILDER_EXERCISES_SETTING: SettingDef<number | null> = {
+  key: "ironlog:builderExercises",
+  fallback: null,
+  parse: (raw) => {
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 3 && n <= 10 ? n : undefined;
+  },
+  serialize: (v) => String(v),
+};

@@ -106,11 +106,25 @@ interface AIResponse {
 const asMuscles = (list: unknown): MuscleGroup[] =>
   Array.isArray(list) ? [...new Set(list.map((m) => String(m).toLowerCase().trim()))].filter((m): m is MuscleGroup => (ALL_MUSCLES as string[]).includes(m)) : [];
 
+/** Median number of exercises in the last 8 sessions, or null with too little history. */
+export function usualSessionSize(workouts: Workout[]): number | null {
+  const sizes = [...workouts]
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 8)
+    .map((w) => w.exercises.filter((e) => e.sets.some(isWorkSet)).length)
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  if (sizes.length < 2) return null;
+  return Math.min(10, Math.max(3, sizes[Math.floor(sizes.length / 2)]!));
+}
+
 /** Everything the model needs, kept well under the request size limit. */
 export function builderContext(input: {
   request: string;
   focus: MuscleGroup[];
   auto: boolean;
+  /** Exact number of exercises the lifter asked for; empty means their usual session size. */
+  count?: number | null;
   workouts: Workout[];
   stats: MuscleStat[];
   memory: string[];
@@ -118,11 +132,15 @@ export function builderContext(input: {
 }): string {
   const { focus, auto, workouts, stats, memory, units } = input;
   const recent = [...workouts].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
+  const usual = usualSessionSize(workouts);
   const lines: string[] = [];
   lines.push(`TODAY: ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`);
   lines.push(`UNITS: ${units} (give weights in ${units}, in loadable steps of ${units === "kg" ? "2.5 kg" : "5 lb"})`);
   lines.push(
     `TARGET MUSCLES: ${focus.map((m) => MUSCLE_LABELS[m].toLowerCase()).join(", ")}${auto ? " (picked by the app: furthest behind this week and rested)" : " (chosen by the lifter)"}`,
+  );
+  lines.push(
+    input.count ? `EXERCISES: exactly ${input.count} (chosen by the lifter)` : usual ? `EXERCISES: ${usual} (their usual session size)` : "EXERCISES: 5-7",
   );
   lines.push("THIS WEEK (working sets done / weekly target, days since last trained):");
   for (const s of stats) {
