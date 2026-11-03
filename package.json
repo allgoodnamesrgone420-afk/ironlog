@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "deploy:rules": "firebase deploy --only firestore:rules"
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-ironlog",
+    "seed": "node scripts/seed-emulator.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

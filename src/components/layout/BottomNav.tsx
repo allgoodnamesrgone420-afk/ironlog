@@ -70,11 +70,12 @@ export function BottomNav() {
           else tabRefs.current.delete(t.href);
         }}
         aria-current={active ? "page" : undefined}
-        className={`relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-bold uppercase tracking-[0.08em] transition-colors duration-300 ${
+        className={`relative flex h-12 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-bold uppercase tracking-[0.08em] transition-[color,transform] duration-300 active:scale-90 active:duration-75 ${
           active ? "text-on-accent" : "text-ink-3 hover:text-ink"
         }`}
       >
-        <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.5 : 2.2} />
+        {/* Re-keyed on activation so the icon hops each time its tab is picked. */}
+        <Icon key={active ? "on" : "off"} className={`h-[18px] w-[18px] ${active ? "tab-hop" : ""}`} strokeWidth={active ? 2.5 : 2.2} />
         {t.label}
       </Link>
     );

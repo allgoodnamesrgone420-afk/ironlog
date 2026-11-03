@@ -9,13 +9,13 @@ import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import type { Units } from "@/types/user";
 import { findExercise } from "@/lib/data/exercises";
 import { MUSCLE_LABELS } from "@/lib/analytics/muscle-groups";
-import { beats } from "@/lib/analytics/personal-records";
+import { beats, isSessionPR } from "@/lib/analytics/personal-records";
 import { displayWeight, roundToPlate } from "@/lib/units/converter";
 import { uid } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
 import { ExerciseAutocomplete, type CustomExerciseLike } from "./ExerciseAutocomplete";
 import { PlateCalculator } from "./PlateCalculator";
-import { SetRow } from "./SetRow";
+import { SetRow, setGridCols } from "./SetRow";
 
 const MUSCLES: MuscleGroup[] = ["chest", "back", "shoulders", "biceps", "triceps", "forearms", "core", "quads", "hamstrings", "glutes", "calves", "cardio"];
 
@@ -62,7 +62,7 @@ export function formatSet(set: { kg: number; reps: number }, units: Units): stri
  * Progressive-overload nudge: about 2.5% heavier, rounded to a loadable jump
  * (2.5 kg / 5 lb). When that rounds back to the same weight, add a rep instead.
  */
-function nextTarget(last: { kg: number; reps: number }, units: Units): string {
+export function nextTarget(last: { kg: number; reps: number }, units: Units): string {
   if (last.kg <= 0) return `${last.reps + 1} reps`;
   const next = roundToPlate(last.kg * 1.025, units);
   if (displayWeight(next, units, 1) > displayWeight(last.kg, units, 1)) return `${displayWeight(next, units, 1)} ${units}`;
@@ -104,17 +104,7 @@ export function ExerciseCard(props: Props) {
   const workSets = exercise.sets.filter((s) => !s.warmup);
   const warmups = exercise.sets.length - workSets.length;
 
-  // PRs only count against earlier sessions; a first attempt isn't a record. Warm-ups never are.
-  const sessionBestExcept = (i: number) =>
-    exercise.sets.reduce<{ kg: number; reps: number } | null>(
-      (best, s, j) => (j !== i && s.completed && !s.warmup && s.kg > 0 && beats(s, best) ? s : best),
-      null,
-    );
-  const isNewBest = (s: { kg: number; reps: number }, i: number) => {
-    if (!prevBest || exercise.sets[i]?.warmup || s.kg <= 0 || s.reps <= 0) return false;
-    const sessionBest = sessionBestExcept(i);
-    return beats(s, sessionBest && beats(sessionBest, prevBest) ? sessionBest : prevBest);
-  };
+  const isNewBest = (s: { kg: number; reps: number }, i: number) => isSessionPR(exercise.sets, i, s, prevBest);
 
   /** Adds the next warm-up before the working sets, ramping toward the working weight. */
   const addWarmup = () => {
@@ -158,7 +148,7 @@ export function ExerciseCard(props: Props) {
 
   const smallBtn =
     "flex h-9 items-center gap-1.5 border border-line px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated disabled:opacity-30";
-  const cols = editing ? "grid-cols-[34px_1fr_1fr]" : "grid-cols-[34px_1fr_1fr_48px]";
+  const cols = setGridCols(editing);
 
   return (
     <Card>
@@ -293,14 +283,14 @@ export function ExerciseCard(props: Props) {
         )}
       </div>
 
-      <div className={`grid ${cols} gap-1.5 border-y border-line-soft bg-elevated/60 px-3 py-1.5 text-center sm:px-4`}>
+      <div className={`grid ${cols} border-y border-line-soft bg-elevated/60 px-2 py-1.5 text-center min-[340px]:px-3 sm:px-4`}>
         <div className="label">Set</div>
         <div className="label">{units}</div>
         <div className="label">Reps</div>
         {!editing && <div className="label">Done</div>}
       </div>
 
-      <div className="space-y-2 px-3 py-3 sm:px-4">
+      <div className="space-y-2 px-2 py-3 min-[340px]:px-3 sm:px-4">
         {exercise.sets.map((set, idx) => (
           <SetRow
             key={set.id}

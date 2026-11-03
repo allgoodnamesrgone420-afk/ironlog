@@ -15,9 +15,12 @@ A modern, secure rewrite of IronLog. Built with Next.js 15 (App Router), TypeScr
 
 **Features**
 - Logger: pinned session bar (time, sets, volume, Finish), −/+ steppers on the plate grid, a separate complete button, warm-up sets and RPE per set (tap the set number), drag-to-reorder, supersets, finished exercises fold to one line
+- Focus mode: the session one set at a time, full screen, for the gym floor. Gym-sized steppers, one big Done button, swipe (or ← →) between sets, supersets alternate A1 B1 A2 B2, a ring rest timer with what's next, a NEW PR burst, and the screen kept awake (Wake Lock) while it's open
+- Start from a routine: before the first set, the logger offers your usual sessions as one-tap chips
 - Rest timer (auto-start on set complete, vibration on finish)
 - Workout summary after Finish (time, volume, sets, records, muscles hit) with a shareable image card
 - Edit past workouts; delete with Undo
+- History: search by session or exercise, grouped by month with sticky headers and monthly totals
 - Exercise pages: history, best sets, best weight for 1-12 reps, estimated 1RM trend (Epley + Brzycki)
 - Progressive overload prompts (last session pre-fill + "try X" suggestions)
 - Weekly goal (training days) with a streak that forgives one missed week a month, and a weekly report card (ported from Bite)
@@ -57,6 +60,24 @@ cp .env.example .env.local
 # 3. Run
 npm run dev
 ```
+
+### Local development without a Firebase project
+
+The Firebase Emulator Suite runs auth and Firestore on your machine (needs Java 11+), so you can work on the app, or try it on your phone over Wi-Fi, without touching real data.
+
+```bash
+# .env.local: any demo- project id, plus the emulator switch
+NEXT_PUBLIC_FIREBASE_API_KEY=demo-key
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-ironlog
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-ironlog.firebaseapp.com
+NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1
+
+npm run emulators   # terminal 1: auth :9099, firestore :8080
+npm run seed        # terminal 2: demo lifter with ~10 weeks of history
+npm run dev         # terminal 3, then sign in as demo@ironlog.test / ironlog-demo
+```
+
+`npm run seed` wipes the emulator and starts fresh each time, and refuses to run against anything but a `demo-` project.
 
 ## Deploying
 
