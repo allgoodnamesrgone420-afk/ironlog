@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { verifyBearerToken } from "@/lib/firebase/admin";
+import { AdminConfigError, verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { GeminiRequestSchema } from "@/lib/validation/schemas";
 import { checkOrigin, withCors } from "@/lib/server/cors";
@@ -38,7 +38,12 @@ async function handlePost(req: Request): Promise<NextResponse> {
   let uid: string;
   try {
     ({ uid } = await verifyBearerToken(req.headers.get("authorization")));
-  } catch {
+  } catch (e) {
+    // A server that can't check tokens isn't a signed-out user (see /api/coach).
+    if (e instanceof AdminConfigError) {
+      console.error("[/api/gemini]", e.message);
+      return NextResponse.json({ error: "Server auth not configured" }, { status: 500 });
+    }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

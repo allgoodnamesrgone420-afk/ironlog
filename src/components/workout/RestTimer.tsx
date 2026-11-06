@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Pause, Play, X, Minus, Plus, RotateCcw } from "lucide-react";
 import { useTimer } from "@/providers/TimerProvider";
 import { prefersReducedMotion } from "@/lib/motion";
@@ -38,7 +39,7 @@ export function RestTimer() {
     return () => cancelAnimationFrame(raf);
   }, [smooth, endsAt, totalDuration]);
 
-  if (status === "idle") return null;
+  if (status === "idle" || typeof document === "undefined") return null;
 
   const isDone = status === "done";
   const isPaused = status === "paused";
@@ -48,7 +49,8 @@ export function RestTimer() {
   const finalCount = isRunning && secondsLeft > 0 && secondsLeft <= 3;
   const color = isDone ? "rgb(var(--ok))" : isPaused ? "rgb(var(--warn))" : "rgb(var(--lime))";
 
-  return (
+  // Portaled to <body> so the page's enter animation (a transform) can't pin it to the page.
+  return createPortal(
     <div
       role="timer"
       aria-label="Rest timer"
@@ -115,6 +117,7 @@ export function RestTimer() {
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

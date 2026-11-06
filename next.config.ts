@@ -18,7 +18,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com wss://*.firebaseio.com https://generativelanguage.googleapis.com",
+      // Dev also allows the local Firebase emulators (auth :9099, firestore :8080).
+      `connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com wss://*.firebaseio.com https://generativelanguage.googleapis.com${isDev ? " http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*" : ""}`,
       "frame-src 'self' https://*.firebaseapp.com",
       "object-src 'none'",
       "base-uri 'self'",

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Minus, Plus, Trash2 } from "lucide-react";
 import type { WorkoutSet } from "@/types/workout";
+import type { Units } from "@/types/user";
 import { useUnits } from "@/providers/UnitsProvider";
 import { displayWeight, fromKg, toKg } from "@/lib/units/converter";
 import { Modal } from "@/components/ui/Modal";
@@ -27,11 +28,30 @@ interface Props {
 
 const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
+/** Columns of a set row (and the header above them): label, weight, reps, done. Tighter below 400px. */
+export const setGridCols = (editing: boolean) =>
+  editing
+    ? "grid-cols-[30px_1fr_1fr] gap-1 min-[400px]:grid-cols-[34px_1fr_1fr] min-[400px]:gap-1.5"
+    : "grid-cols-[30px_1fr_1fr_44px] gap-1 min-[400px]:grid-cols-[34px_1fr_1fr_48px] min-[400px]:gap-1.5";
+
+/**
+ * One −/+ tap on the weight, in kg. An empty box starts from `fallbackKg` (last
+ * session's weight, shown as the placeholder), and the result lands on the
+ * plate grid: 53.75 goes to 55 or 52.5, not 56.25.
+ */
+export function stepWeightKg(kg: number, fallbackKg: number | undefined, units: Units, dir: -1 | 1): number {
+  const step = units === "kg" ? 2.5 : 5;
+  const base = kg > 0 ? displayWeight(kg, units) : fallbackKg ? displayWeight(fallbackKg, units) : 0;
+  const steps = base / step;
+  const next = (dir > 0 ? Math.floor(steps + 1e-6) + 1 : Math.ceil(steps - 1e-6) - 1) * step;
+  return toKg(Math.max(0, next), units);
+}
+
 /**
  * Input that keeps its own text state so the user can type intermediate values
  * like "20." or "0.5" without the canonical numeric state stomping them.
  */
-function NumberField({
+export function NumberField({
   externalValue,
   onValue,
   decimal,
@@ -100,7 +120,9 @@ function Stepper({
   onStep: (direction: -1 | 1) => void;
   children: React.ReactNode;
 }) {
-  const btn = "flex w-8 shrink-0 items-center justify-center text-ink-2 transition-colors hover:text-ink active:bg-elevated";
+  // Narrower steppers on small phones so the number between them still fits ("102.5" at 360px).
+  const btn =
+    "flex w-6 shrink-0 items-center justify-center text-ink-2 transition-colors hover:text-ink active:bg-elevated min-[340px]:w-7 min-[400px]:w-8";
   return (
     <div className="flex h-12 min-w-0 items-stretch border border-line bg-field focus-within:border-ink focus-within:shadow-[3px_3px_0_rgb(var(--lime))]">
       <button type="button" className={btn} onClick={() => onStep(-1)} aria-label={`Less ${label}`}>
@@ -142,16 +164,8 @@ export function SetRow({ label, set, editing = false, suggestion, canDelete, bea
 
   // Display value for kg is in the user's chosen unit
   const displayKg = fromKg(set.kg, units);
-  const weightStep = units === "kg" ? 2.5 : 5;
 
-  const stepWeight = (dir: -1 | 1) => {
-    // An empty box starts from last session's weight (shown as the placeholder).
-    const base = set.kg > 0 ? displayWeight(set.kg, units) : suggestion ? displayWeight(suggestion.kg, units) : 0;
-    // Land on the plate grid: 53.75 goes to 55 or 52.5, not 56.25.
-    const steps = base / weightStep;
-    const next = (dir > 0 ? Math.floor(steps + 1e-6) + 1 : Math.ceil(steps - 1e-6) - 1) * weightStep;
-    onChange({ kg: toKg(Math.max(0, next), units) });
-  };
+  const stepWeight = (dir: -1 | 1) => onChange({ kg: stepWeightKg(set.kg, suggestion?.kg, units, dir) });
   const stepReps = (dir: -1 | 1) => {
     const base = set.reps > 0 ? set.reps : (suggestion?.reps ?? 0);
     onChange({ reps: Math.max(0, base + dir) });
@@ -182,7 +196,7 @@ export function SetRow({ label, set, editing = false, suggestion, canDelete, bea
   const input = "num min-w-0 flex-1 bg-transparent text-center text-base font-bold placeholder:text-ink-3 focus:outline-none";
 
   return (
-    <div className={`relative grid items-center gap-1.5 ${editing ? "grid-cols-[34px_1fr_1fr]" : "grid-cols-[34px_1fr_1fr_48px]"}`}>
+    <div className={`relative grid items-center ${setGridCols(editing)}`}>
       {/* Set label: opens the set menu. */}
       <button
         type="button"
@@ -237,7 +251,7 @@ export function SetRow({ label, set, editing = false, suggestion, canDelete, bea
           onClick={toggle}
           aria-label={set.completed ? `${name} done. Mark incomplete` : `Complete ${name.toLowerCase()}`}
           aria-pressed={set.completed}
-          className={`relative flex h-12 w-12 items-center justify-center border transition-colors ${
+          className={`relative flex h-12 w-11 items-center justify-center border transition-colors min-[400px]:w-12 ${
             set.completed ? "border-lime bg-lime text-on-accent" : "border-line text-ink-3 hover:border-ink hover:text-ink"
           }`}
         >

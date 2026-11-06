@@ -7,9 +7,11 @@ import {
   indexedDBLocalPersistence,
   browserLocalPersistence,
   inMemoryPersistence,
+  connectAuthEmulator,
   type Auth,
 } from "firebase/auth";
 import {
+  connectFirestoreEmulator,
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
@@ -74,4 +76,21 @@ function resolveDb(a: FirebaseApp): Firestore {
 
 export const auth: Auth = resolveAuth(app);
 export const db: Firestore = resolveDb(app);
+
+/**
+ * Local development against the Firebase Emulator Suite (`npm run emulators`).
+ * Opt-in with NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1 so a real project is never
+ * pointed at localhost by accident. Guarded on a window flag because hot
+ * reload re-runs this module and the SDK throws on a second connect.
+ */
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "1") {
+  const w = window as Window & { __ironlogEmulators?: boolean };
+  if (!w.__ironlogEmulators) {
+    w.__ironlogEmulators = true;
+    const host = window.location.hostname;
+    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, host, 8080);
+  }
+}
+
 export default app;
