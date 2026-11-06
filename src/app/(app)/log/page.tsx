@@ -294,11 +294,11 @@ function LogPageInner() {
         <button
           onClick={() => setFocusOpen(true)}
           aria-label="Focus mode: one set at a time, full screen"
-          className="pop-btn ghost mb-1 h-11 min-h-0 w-11 shrink-0 gap-1.5 px-0 text-xs min-[380px]:w-auto min-[380px]:px-3"
+          className="pop-btn ghost mb-1 h-11 min-h-0 w-11 shrink-0 gap-1.5 px-0 text-xs min-[370px]:w-auto min-[370px]:px-3"
           style={{ ["--d" as string]: "3px" }}
         >
           <Maximize2 className="h-4 w-4" />
-          <span className="hidden min-[380px]:inline">Focus</span>
+          <span className="hidden min-[370px]:inline">Focus</span>
         </button>
         <button
           onClick={() => setAiOpen(true)}

@@ -24,6 +24,7 @@ A modern, secure rewrite of IronLog. Built with Next.js 15 (App Router), TypeScr
 - Exercise pages: history, best sets, best weight for 1-12 reps, estimated 1RM trend (Epley + Brzycki)
 - Progressive overload prompts (last session pre-fill + "try X" suggestions)
 - Weekly goal (training days) with a streak that forgives one missed week a month, and a weekly report card (ported from Bite)
+- Milestones: 25 achievements worked out from your log (sessions, total weight lifted in your unit, records, goal streaks, bench / squat / deadlift at 1× / 1.5× / 2× bodyweight). A trophy case with what's up next, the closest one on Home, and an unlock celebration on the summary of the session that earned it
 - Muscle balance against weekly targets, per muscle
 - Exercise library + autocomplete (prevents PR fragmentation)
 - Plate calculator, imperial / metric toggle
@@ -71,6 +72,9 @@ NEXT_PUBLIC_FIREBASE_API_KEY=demo-key
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-ironlog
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo-ironlog.firebaseapp.com
 NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1
+# optional: lets the API routes (coach, AI builder) accept emulator sign-ins; still needs GEMINI_API_KEY to answer
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
 
 npm run emulators   # terminal 1: auth :9099, firestore :8080
 npm run seed        # terminal 2: demo lifter with ~10 weeks of history
@@ -106,6 +110,7 @@ src/
 │   │   ├── history         Past sessions, export
 │   │   ├── stats           Muscle balance, volume, 1RM, PRs, calendar
 │   │   ├── week            Weekly report card
+│   │   ├── milestones      Achievements from the log, what's next
 │   │   ├── coach           AI chat (streaming, memory, build a workout)
 │   │   ├── programs        Multi-week programs
 │   │   ├── body            Weight trend, body fat, measurements, photos

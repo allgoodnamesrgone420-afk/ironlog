@@ -75,7 +75,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role="status"
-            className={`backdrop flex w-full max-w-[390px] items-start gap-3 border border-line border-l-[6px] bg-elevated px-4 py-3 text-sm font-semibold shadow-[4px_4px_0_#000] ${
+            className={`toast-in flex w-full max-w-[390px] items-start gap-3 border border-line border-l-[6px] bg-elevated px-4 py-3 text-sm font-semibold shadow-[4px_4px_0_#000] ${
               t.variant === "success" ? "border-l-ok" : t.variant === "error" ? "border-l-over" : "border-l-violet"
             }`}
           >
