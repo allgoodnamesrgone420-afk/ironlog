@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { AdminConfigError, verifyBearerToken } from "@/lib/firebase/admin";
+import { AdminConfigError, UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { CoachStreamSchema } from "@/lib/validation/schemas";
 import { COACH_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
@@ -30,7 +30,9 @@ async function handlePost(req: Request): Promise<Response> {
 
   let uid: string;
   try {
-    ({ uid } = await verifyBearerToken(req.headers.get("authorization")));
+    const who = await verifyBearerToken(req.headers.get("authorization"));
+    if (!mayUseAI(who)) return NextResponse.json({ error: UNVERIFIED_MESSAGE, code: "unverified" }, { status: 403 });
+    uid = who.uid;
   } catch (e) {
     // A server that can't check tokens isn't a signed-out user; telling them to sign in again sends them in circles.
     if (e instanceof AdminConfigError) {
@@ -79,7 +81,8 @@ async function handlePost(req: Request): Promise<Response> {
       signal: AbortSignal.timeout(55_000),
     });
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "Upstream call failed", 502);
+    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    return fail(timedOut ? "The coach took too long. Try again." : "Upstream call failed", timedOut ? 504 : 502);
   }
   if (!upstream.ok || !upstream.body) {
     // Don't leak Google's verbose error messages to the client

@@ -10,14 +10,6 @@ import {
   connectAuthEmulator,
   type Auth,
 } from "firebase/auth";
-import {
-  connectFirestoreEmulator,
-  getFirestore,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  type Firestore,
-} from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -34,6 +26,10 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   console.error("[ironlog] Missing NEXT_PUBLIC_FIREBASE_* env vars — copy .env.example to .env.local");
 }
 
+/*
+ * Auth only. Firestore lives in ./db so the sign-in pages (which never touch
+ * the database) don't download and parse the Firestore SDK.
+ */
 const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 /**
@@ -54,42 +50,20 @@ function resolveAuth(a: FirebaseApp): Auth {
   }
 }
 
-/**
- * In the browser, keep Firestore's cache in IndexedDB so sets logged offline
- * (a basement gym) are queued on disk and survive closing the app, instead of
- * living only in memory until the connection returns.
- */
-function resolveDb(a: FirebaseApp): Firestore {
-  if (typeof window === "undefined") return getFirestore(a);
-  try {
-    return initializeFirestore(a, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-      // Optional fields left undefined (a set without RPE, an exercise without
-      // notes) are skipped instead of failing the whole write.
-      ignoreUndefinedProperties: true,
-    });
-  } catch {
-    // Already initialized (e.g. hot reload in dev).
-    return getFirestore(a);
-  }
-}
-
 export const auth: Auth = resolveAuth(app);
-export const db: Firestore = resolveDb(app);
 
 /**
  * Local development against the Firebase Emulator Suite (`npm run emulators`).
  * Opt-in with NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1 so a real project is never
  * pointed at localhost by accident. Guarded on a window flag because hot
- * reload re-runs this module and the SDK throws on a second connect.
+ * reload re-runs this module and the SDK throws on a second connect. Firestore
+ * connects in ./db, which only the pages that need it load.
  */
 if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "1") {
-  const w = window as Window & { __ironlogEmulators?: boolean };
-  if (!w.__ironlogEmulators) {
-    w.__ironlogEmulators = true;
-    const host = window.location.hostname;
-    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
-    connectFirestoreEmulator(db, host, 8080);
+  const w = window as Window & { __ironlogAuthEmulator?: boolean };
+  if (!w.__ironlogAuthEmulator) {
+    w.__ironlogAuthEmulator = true;
+    connectAuthEmulator(auth, `http://${window.location.hostname}:9099`, { disableWarnings: true });
   }
 }
 

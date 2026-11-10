@@ -7,7 +7,6 @@ import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/
 import { auth } from "@/lib/firebase/client";
 import { AuthShell, Field, FormError } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
-import { upsertProfile } from "@/lib/firebase/repository";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -26,19 +25,25 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await Promise.all([
-        sendEmailVerification(cred.user),
-        upsertProfile(cred.user.uid, {
-          uid: cred.user.uid,
-          email: cred.user.email ?? email,
-          units: "kg",
-          theme: "system",
-          weeklyGoal: 4,
-          defaultRestSec: 120,
-          barbellKg: 20,
-          createdAt: new Date(),
-        }),
-      ]);
+      // The account now exists. The verification email and the starter profile
+      // are best-effort: a failure here used to show "couldn't create the
+      // account", and trying again then failed because the email was taken.
+      // The profile write is loaded on demand so this page doesn't ship Firestore.
+      void sendEmailVerification(cred.user).catch(() => {});
+      void import("@/lib/firebase/repository")
+        .then(({ upsertProfile }) =>
+          upsertProfile(cred.user.uid, {
+            uid: cred.user.uid,
+            email: cred.user.email ?? email,
+            units: "kg",
+            theme: "system",
+            weeklyGoal: 4,
+            defaultRestSec: 120,
+            barbellKg: 20,
+            createdAt: new Date(),
+          }),
+        )
+        .catch(() => {});
       router.replace("/verify");
     } catch {
       // Generic message also for sign-up: don't expose whether the email exists.

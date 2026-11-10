@@ -59,3 +59,14 @@ export async function verifyBearerToken(authorizationHeader: string | null): Pro
   const decoded = await adminAuth().verifyIdToken(idToken, true);
   return { uid: decoded.uid, email_verified: !!decoded.email_verified };
 }
+
+/**
+ * The AI routes spend money per call, and anyone can create an account, so a
+ * throwaway address must not be enough to use them: the email has to be
+ * verified. Set ALLOW_UNVERIFIED_AI=true to switch this off.
+ */
+export function mayUseAI(user: { email_verified: boolean }): boolean {
+  return user.email_verified || process.env.ALLOW_UNVERIFIED_AI === "true";
+}
+
+export const UNVERIFIED_MESSAGE = "Verify your email to use the AI features. Settings has a button to resend the link.";

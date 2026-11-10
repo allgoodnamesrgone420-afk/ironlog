@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { AdminConfigError, verifyBearerToken } from "@/lib/firebase/admin";
+import { AdminConfigError, UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { GeminiRequestSchema } from "@/lib/validation/schemas";
 import { checkOrigin, withCors } from "@/lib/server/cors";
@@ -37,7 +37,9 @@ async function handlePost(req: Request): Promise<NextResponse> {
   // 2. Auth
   let uid: string;
   try {
-    ({ uid } = await verifyBearerToken(req.headers.get("authorization")));
+    const who = await verifyBearerToken(req.headers.get("authorization"));
+    if (!mayUseAI(who)) return NextResponse.json({ error: UNVERIFIED_MESSAGE, code: "unverified" }, { status: 403 });
+    uid = who.uid;
   } catch (e) {
     // A server that can't check tokens isn't a signed-out user (see /api/coach).
     if (e instanceof AdminConfigError) {
@@ -89,14 +91,16 @@ async function handlePost(req: Request): Promise<NextResponse> {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         systemInstruction: { parts: [{ text: systemInstruction }] },
-        ...(jsonMode ? { generationConfig: { responseMimeType: "application/json" } } : {}),
+        // Cap the reply (this budget includes the model's thinking) so one
+        // request can't run up an unbounded bill.
+        generationConfig: { maxOutputTokens: 16_384, ...(jsonMode ? { responseMimeType: "application/json" } : {}) },
       }),
       // 30-second hard timeout via AbortController
       signal: AbortSignal.timeout(30_000),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Upstream call failed";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    return NextResponse.json({ error: timedOut ? "The model took too long. Try again." : "Upstream call failed" }, { status: timedOut ? 504 : 502 });
   }
 
   let modelJson: unknown;
@@ -120,7 +124,7 @@ async function handlePost(req: Request): Promise<NextResponse> {
     try {
       return NextResponse.json(JSON.parse(text));
     } catch {
-      return NextResponse.json({ error: "Model did not return JSON", raw: text }, { status: 502 });
+      return NextResponse.json({ error: "Model did not return JSON" }, { status: 502 });
     }
   }
   return NextResponse.json(text);

@@ -147,7 +147,8 @@ export function FocusMode(props: Props) {
   const [reviewing, setReviewing] = useState(false);
   const [closing, setClosing] = useState(false);
   const [shake, setShake] = useState(0);
-  const jumpToNew = useRef(false);
+  /** "Add set" adds a set we don't know the id of yet: jump to it once it appears. */
+  const [jumpToNew, setJumpToNew] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const awake = useWakeLock(open);
@@ -157,47 +158,49 @@ export function FocusMode(props: Props) {
   const idx = Math.max(0, steps.findIndex((s) => s.set.id === currentId));
   const step = steps[idx];
 
-  // Opening: start at the first set not done yet.
-  useLayoutEffect(() => {
-    if (!open) return;
-    setClosing(false);
-    setReviewing(false);
-    setResting(false);
-    setCurrentId((steps.find((s) => !s.set.completed) ?? steps[steps.length - 1])?.set.id ?? null);
-    // Only on open; later edits keep your place.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  // State that follows other state is adjusted here, during render, rather than
+  // in effects (React re-renders straight away, before anything is painted).
 
-  // "One more set" adds a set we don't know the id of yet: jump to it once it appears.
-  useEffect(() => {
-    if (!jumpToNew.current) return;
+  // Opening: start at the first set not done yet. Later edits keep your place.
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setClosing(false);
+      setReviewing(false);
+      setResting(false);
+      setCurrentId((steps.find((s) => !s.set.completed) ?? steps[steps.length - 1])?.set.id ?? null);
+    }
+  }
+
+  if (jumpToNew) {
     const fresh = steps.find((s) => !s.set.completed);
     if (fresh) {
-      jumpToNew.current = false;
+      setJumpToNew(false);
       setDir(1);
       setCurrentId(fresh.set.id);
     }
-  }, [steps]);
+  }
 
   // Finishing the last set shows the done screen, even if you'd been reviewing.
-  const wasAllDone = useRef(allDone);
-  useEffect(() => {
-    if (allDone && !wasAllDone.current) setReviewing(false);
-    wasAllDone.current = allDone;
-  }, [allDone]);
+  const [wasAllDone, setWasAllDone] = useState(allDone);
+  if (allDone !== wasAllDone) {
+    setWasAllDone(allDone);
+    if (allDone) setReviewing(false);
+  }
 
   // The countdown ending closes the rest screen and flags the next set.
-  const prevStatus = useRef(timer.status);
-  useEffect(() => {
-    const was = prevStatus.current;
-    prevStatus.current = timer.status;
+  const [prevStatus, setPrevStatus] = useState(timer.status);
+  if (timer.status !== prevStatus) {
+    setPrevStatus(timer.status);
     if (timer.status === "done" || timer.status === "idle") setResting(false);
-    if (was === "running" && timer.status === "done" && open) {
-      setRestOver(true);
-      const t = setTimeout(() => setRestOver(false), 2200);
-      return () => clearTimeout(t);
-    }
-  }, [timer.status, open]);
+    if (prevStatus === "running" && timer.status === "done" && open) setRestOver(true);
+  }
+  useEffect(() => {
+    if (!restOver) return;
+    const t = setTimeout(() => setRestOver(false), 2200);
+    return () => clearTimeout(t);
+  }, [restOver]);
 
   useEffect(() => {
     if (!burst) return;
@@ -405,7 +408,7 @@ export function FocusMode(props: Props) {
               block
               className="whitespace-nowrap px-3"
               onClick={() => {
-                jumpToNew.current = true;
+                setJumpToNew(true);
                 setReviewing(true);
                 props.onAddSet(step!.ex.id);
               }}
