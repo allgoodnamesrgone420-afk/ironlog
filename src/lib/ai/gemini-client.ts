@@ -3,6 +3,33 @@
 import { auth } from "@/lib/firebase/client";
 
 /**
+ * POSTs to an AI route with the caller's ID token. A token minted before the
+ * email was verified still says "unverified" for up to an hour, so on that
+ * answer the account is re-read, the token refreshed and the call retried once.
+ */
+async function authedPost(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not signed in");
+  const send = async (forceRefresh: boolean) =>
+    fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken(forceRefresh)}` },
+      body: JSON.stringify(body),
+      signal,
+    });
+  const res = await send(false);
+  if (res.status !== 403) return res;
+  const code = await res
+    .clone()
+    .json()
+    .then((d: { code?: string }) => d.code)
+    .catch(() => undefined);
+  if (code !== "unverified") return res;
+  await user.reload().catch(() => {});
+  return user.emailVerified ? send(true) : res;
+}
+
+/**
  * Client-side wrapper for /api/gemini. Always attaches a fresh Firebase ID token
  * so the server can verify the caller before spending money on a model call.
  */
@@ -11,24 +38,11 @@ export async function callGemini<T = unknown>(
   systemInstruction?: string,
   opts: { jsonMode?: boolean; signal?: AbortSignal } = {},
 ): Promise<T> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-
-  const idToken = await user.getIdToken();
-
-  const res = await fetch("/api/gemini", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({
-      prompt,
-      systemInstruction: systemInstruction ?? "You are a helpful assistant.",
-      jsonMode: !!opts.jsonMode,
-    }),
-    signal: opts.signal,
-  });
+  const res = await authedPost(
+    "/api/gemini",
+    { prompt, systemInstruction: systemInstruction ?? "You are a helpful assistant.", jsonMode: !!opts.jsonMode },
+    opts.signal,
+  );
 
   let data: unknown;
   try {
@@ -56,16 +70,7 @@ export async function streamCoach(opts: {
   signal?: AbortSignal;
   onText: (full: string) => void;
 }): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Not signed in");
-  const idToken = await user.getIdToken();
-
-  const res = await fetch("/api/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ messages: opts.messages, context: opts.context }),
-    signal: opts.signal,
-  });
+  const res = await authedPost("/api/coach", { messages: opts.messages, context: opts.context }, opts.signal);
   if (!res.ok || !res.body) {
     let msg = `HTTP ${res.status}`;
     try {

@@ -16,7 +16,7 @@ import {
   Timestamp,
   type Unsubscribe,
 } from "firebase/firestore";
-import { db } from "./client";
+import { db } from "./db";
 import type { Workout, WorkoutTemplate, BodyMetric, MuscleGroup } from "@/types/workout";
 import type { CoachMessage } from "@/types/ai";
 import type { UserProfile } from "@/types/user";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signOut, sendPasswordResetEmail, deleteUser } from "firebase/auth";
+import { signOut, sendPasswordResetEmail, sendEmailVerification, deleteUser } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Scale, Palette, Mail, LogOut, AlertTriangle, Target, RotateCcw, Timer, Dumbbell, Flame } from "lucide-react";
@@ -29,6 +29,20 @@ export default function SettingsPage() {
   const toast = useToast();
   const router = useRouter();
   const [resetting, setResetting] = useState(false);
+
+  const [verifying, setVerifying] = useState(false);
+  const resendVerification = async () => {
+    if (!user) return;
+    setVerifying(true);
+    try {
+      await sendEmailVerification(user);
+      toast.success("Verification email sent. Open the link, then come back.");
+    } catch {
+      toast.error("Couldn't send right now. Try again in a minute.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const resetPassword = async () => {
     if (!user?.email) return;
@@ -112,10 +126,15 @@ export default function SettingsPage() {
           <p className="break-all text-sm font-semibold">{user?.email}</p>
           {user && !user.emailVerified && (
             <p className="flex items-center gap-2 border border-warn/60 bg-warn/10 px-3 py-2 text-xs">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /> Email not verified.
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warn" /> Email not verified. The AI coach and workout builder need a verified email.
             </p>
           )}
         </Section>
+        {user && !user.emailVerified && (
+          <Button variant="secondary" onClick={resendVerification} loading={verifying} block>
+            Resend verification email
+          </Button>
+        )}
         <Button variant="secondary" onClick={resetPassword} loading={resetting} block>
           Send password reset email
         </Button>

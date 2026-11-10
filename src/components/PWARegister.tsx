@@ -20,9 +20,13 @@ export function PWARegister() {
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") return;
 
+    // The very first install also fires `controllerchange` (the new worker
+    // claims the page). Nothing was updated then, so don't reload: that made
+    // every first visit load the app twice.
+    const hadController = Boolean(navigator.serviceWorker.controller);
     let refreshing = false;
     const onControllerChange = () => {
-      if (refreshing) return;
+      if (!hadController || refreshing) return;
       refreshing = true;
       window.location.reload();
     };
