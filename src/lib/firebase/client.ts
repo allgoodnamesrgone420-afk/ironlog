@@ -7,6 +7,7 @@ import {
   indexedDBLocalPersistence,
   browserLocalPersistence,
   inMemoryPersistence,
+  connectAuthEmulator,
   type Auth,
 } from "firebase/auth";
 
@@ -50,4 +51,20 @@ function resolveAuth(a: FirebaseApp): Auth {
 }
 
 export const auth: Auth = resolveAuth(app);
+
+/**
+ * Local development against the Firebase Emulator Suite (`npm run emulators`).
+ * Opt-in with NEXT_PUBLIC_USE_FIREBASE_EMULATORS=1 so a real project is never
+ * pointed at localhost by accident. Guarded on a window flag because hot
+ * reload re-runs this module and the SDK throws on a second connect. Firestore
+ * connects in ./db, which only the pages that need it load.
+ */
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "1") {
+  const w = window as Window & { __ironlogAuthEmulator?: boolean };
+  if (!w.__ironlogAuthEmulator) {
+    w.__ironlogAuthEmulator = true;
+    connectAuthEmulator(auth, `http://${window.location.hostname}:9099`, { disableWarnings: true });
+  }
+}
+
 export default app;

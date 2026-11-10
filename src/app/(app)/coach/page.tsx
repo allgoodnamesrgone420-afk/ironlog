@@ -34,6 +34,7 @@ function formatCoachError(msg: string): string {
   if (m.includes("unauthorized") || m.includes("401")) return "You got signed out — refresh and sign in again.";
   if (m.includes("rate limit") || m.includes("429")) return msg;
   if (m.includes("server misconfigured")) return "Server is missing the Gemini key. Add GEMINI_API_KEY to Vercel env vars.";
+  if (m.includes("server auth not configured")) return "Server can't check sign-ins yet. Add FIREBASE_SERVICE_ACCOUNT_B64 to Vercel env vars.";
   if (m.includes("model error") || m.includes("502")) return "The model is having trouble. Try again in a moment.";
   if (m.includes("invalid request")) return "That message had an unexpected shape — try rephrasing.";
   if (m.includes("failed to fetch") || m.includes("network")) return "Network issue — check your connection.";
@@ -140,7 +141,7 @@ export default function CoachPage() {
       } else {
         const friendly = formatCoachError(e instanceof Error ? e.message : "Unknown error");
         toast.error(friendly);
-        void appendCoachMessage(user.uid, "model", `_Couldn't reach the coach:_ **${friendly}**`, { id }).catch(() => setLive(null));
+        void appendCoachMessage(user.uid, "model", `*Couldn't reach the coach:* **${friendly}**`, { id }).catch(() => setLive(null));
       }
     } finally {
       abortRef.current = null;
@@ -165,7 +166,7 @@ export default function CoachPage() {
     } catch (e) {
       const friendly = formatCoachError(e instanceof Error ? e.message : "Unknown error");
       toast.error(friendly);
-      void appendCoachMessage(user.uid, "model", `_Couldn't build a workout:_ **${friendly}**`, { id }).catch(() => setLive(null));
+      void appendCoachMessage(user.uid, "model", `*Couldn't build a workout:* **${friendly}**`, { id }).catch(() => setLive(null));
     }
   };
 

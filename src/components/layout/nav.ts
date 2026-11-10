@@ -1,4 +1,4 @@
-import { BarChart3, Bot, CalendarCheck, CalendarRange, History, Home, Scale, Settings } from "lucide-react";
+import { BarChart3, Bot, CalendarCheck, CalendarRange, History, Home, Medal, Scale, Settings } from "lucide-react";
 
 /** Main destinations: the phone dock shows these four around the Log button. */
 export const TABS = [
@@ -12,6 +12,7 @@ export const TABS = [
 export const SIDEBAR_TABS = [
   ...TABS,
   { href: "/week", label: "Weekly report", icon: CalendarCheck },
+  { href: "/milestones", label: "Milestones", icon: Medal },
   { href: "/body", label: "Body", icon: Scale },
   { href: "/programs", label: "Programs", icon: CalendarRange },
   { href: "/settings", label: "Settings", icon: Settings },
