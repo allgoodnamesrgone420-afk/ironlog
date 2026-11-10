@@ -88,7 +88,8 @@ export function lastSessionFor(workouts: Workout[], exerciseName: string): { kg:
         const top = (ex.sets ?? [])
           .filter(isWorkSet)
           .reduce<{ kg: number; reps: number } | null>(
-            (acc, s) => (!acc || s.kg > acc.kg ? { kg: s.kg, reps: s.reps } : acc),
+            // Same rule as records: heavier wins, and at the same weight more reps wins.
+            (acc, s) => (beats(s, acc) ? { kg: s.kg, reps: s.reps } : acc),
             null,
           );
         if (top) return top;
