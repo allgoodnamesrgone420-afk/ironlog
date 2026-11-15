@@ -22,6 +22,8 @@ import { CountUp } from "@/components/ui/CountUp";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { MilestonesUnlocked } from "@/components/milestones/MilestoneBadge";
+import { useMilestones } from "@/hooks/useMilestones";
 
 export default function WorkoutPage() {
   return (
@@ -88,6 +90,8 @@ function Summary({ workout, workouts, done, onDeleted }: { workout: Workout; wor
   const volume = fromKg(workoutVolume(workout, bodyweightKg), units);
   const sets = workoutSetCount(workout);
   const prs = useMemo(() => prsInWorkout(workouts, workout), [workouts, workout]);
+  const { milestones } = useMilestones(workouts);
+  const unlocked = useMemo(() => milestones.filter((m) => m.earned?.workoutId === workout.id), [milestones, workout.id]);
   const muscles = useMemo(() => {
     const totals = muscleSetsThisWeek([workout]);
     return (Object.entries(totals) as [MuscleGroup, number][]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
@@ -161,17 +165,17 @@ function Summary({ workout, workouts, done, onDeleted }: { workout: Workout; wor
         <div className="grid grid-cols-3 gap-3">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Time</p>
-            <p className="num mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">{formatDuration(workout.durationSec)}</p>
+            <p className="num mt-1 whitespace-nowrap text-xl font-extrabold tracking-tight min-[400px]:text-2xl sm:text-3xl">{formatDuration(workout.durationSec)}</p>
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Volume · {units}</p>
-            <p className="num mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
+            <p className="num mt-1 whitespace-nowrap text-xl font-extrabold tracking-tight min-[400px]:text-2xl sm:text-3xl">
               <CountUp value={Math.round(volume)} />
             </p>
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-80">Sets</p>
-            <p className="num mt-1 text-2xl font-extrabold tracking-tight sm:text-3xl">
+            <p className="num mt-1 whitespace-nowrap text-xl font-extrabold tracking-tight min-[400px]:text-2xl sm:text-3xl">
               <CountUp value={sets} />
             </p>
           </div>
@@ -182,25 +186,32 @@ function Summary({ workout, workouts, done, onDeleted }: { workout: Workout; wor
         </p>
       </section>
 
-      <div className="flex flex-wrap gap-2" style={{ ["--i" as string]: 2 }}>
-        <Button variant="lime" onClick={openCard} loading={rendering}>
+      {/* Just finished: share or head home, side by side. A past session: share on its own row, then edit and repeat. */}
+      <div className="grid grid-cols-2 gap-2" style={{ ["--i" as string]: 2 }}>
+        <Button variant="lime" block onClick={openCard} loading={rendering} className={`whitespace-nowrap px-3 ${done ? "" : "col-span-2"}`}>
           <Share2 className="h-4 w-4" /> Share card
         </Button>
         {done ? (
-          <Link href="/dashboard" className="pop-btn ghost">
+          <Link href="/dashboard" className="pop-btn ghost wide whitespace-nowrap px-3">
             <Home className="h-4 w-4" /> Done
           </Link>
         ) : (
           <>
-            <Link href={`/workout/edit?id=${workout.id}`} className="pop-btn ghost">
+            <Link href={`/workout/edit?id=${workout.id}`} className="pop-btn ghost wide">
               <Pencil className="h-4 w-4" /> Edit
             </Link>
-            <Link href={`/log?repeat=${workout.id}`} className="pop-btn ghost">
+            <Link href={`/log?repeat=${workout.id}`} className="pop-btn ghost wide">
               <Repeat className="h-4 w-4" /> Repeat
             </Link>
           </>
         )}
       </div>
+
+      {unlocked.length > 0 && (
+        <div style={{ ["--i" as string]: 3 }}>
+          <MilestonesUnlocked list={unlocked} units={units} bodyweightKg={bodyweightKg} celebrate={done} />
+        </div>
+      )}
 
       {prs.length > 0 && (
         <section className="card border-l-[6px] border-l-[#ffb800] p-4" style={{ ["--i" as string]: 3 }} aria-label="New records">

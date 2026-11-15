@@ -9,12 +9,21 @@ import { getFirestore, type Firestore } from "firebase-admin/firestore";
  *  - write to the rateLimits collection
  *
  * Expects FIREBASE_SERVICE_ACCOUNT_B64 (base64 of the service-account JSON).
+ * Locally, FIREBASE_AUTH_EMULATOR_HOST (and FIRESTORE_EMULATOR_HOST) point it
+ * at the emulators instead, which need no credentials.
  */
+
+/** The server can't check tokens at all (missing or broken credentials): not the caller's fault. */
+export class AdminConfigError extends Error {}
+
 function getServiceAccount() {
   const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
-  if (!b64) throw new Error("FIREBASE_SERVICE_ACCOUNT_B64 is not set");
-  const json = Buffer.from(b64, "base64").toString("utf8");
-  return JSON.parse(json);
+  if (!b64) throw new AdminConfigError("FIREBASE_SERVICE_ACCOUNT_B64 is not set");
+  try {
+    return JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
+  } catch {
+    throw new AdminConfigError("FIREBASE_SERVICE_ACCOUNT_B64 is not valid base64 JSON");
+  }
 }
 
 let adminApp: App | null = null;
@@ -24,7 +33,9 @@ function getAdminApp(): App {
     adminApp = getApps()[0]!;
     return adminApp;
   }
-  adminApp = initializeApp({ credential: cert(getServiceAccount()) });
+  adminApp = process.env.FIREBASE_AUTH_EMULATOR_HOST
+    ? initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID })
+    : initializeApp({ credential: cert(getServiceAccount()) });
   return adminApp;
 }
 

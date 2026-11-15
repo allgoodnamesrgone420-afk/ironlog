@@ -8,6 +8,7 @@ import { formatWeight } from "@/lib/units/converter";
 import { workoutVolume } from "@/lib/analytics/volume";
 import { useLatestBodyweight } from "@/hooks/useLatestBodyweight";
 import { daysAgo } from "@/lib/utils";
+import { topRoutines } from "@/lib/workout/routines";
 
 /**
  * Templates surfaced from past workouts. We group by workout name (case-insensitive)
@@ -18,20 +19,7 @@ export function TemplatesFromHistory({ workouts }: { workouts: Workout[] }) {
   const { units } = useUnits();
   const bodyweightKg = useLatestBodyweight();
 
-  const templates = useMemo(() => {
-    const groups = new Map<string, { count: number; latest: Workout }>();
-    for (const w of workouts) {
-      const key = w.name.trim().toLowerCase();
-      if (!key) continue;
-      const existing = groups.get(key);
-      if (!existing) groups.set(key, { count: 1, latest: w });
-      else {
-        existing.count += 1;
-        if (w.date.getTime() > existing.latest.date.getTime()) existing.latest = w;
-      }
-    }
-    return [...groups.values()].sort((a, b) => b.count - a.count).slice(0, 3);
-  }, [workouts]);
+  const templates = useMemo(() => topRoutines(workouts), [workouts]);
 
   if (templates.length === 0) {
     return (

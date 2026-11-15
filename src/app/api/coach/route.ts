@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
+import { AdminConfigError, UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { CoachStreamSchema } from "@/lib/validation/schemas";
 import { COACH_SYSTEM_PROMPT } from "@/lib/ai/system-prompts";
@@ -33,7 +33,12 @@ async function handlePost(req: Request): Promise<Response> {
     const who = await verifyBearerToken(req.headers.get("authorization"));
     if (!mayUseAI(who)) return NextResponse.json({ error: UNVERIFIED_MESSAGE, code: "unverified" }, { status: 403 });
     uid = who.uid;
-  } catch {
+  } catch (e) {
+    // A server that can't check tokens isn't a signed-out user; telling them to sign in again sends them in circles.
+    if (e instanceof AdminConfigError) {
+      console.error("[/api/coach]", e.message);
+      return fail("Server auth not configured", 500);
+    }
     return fail("Unauthorized", 401);
   }
 

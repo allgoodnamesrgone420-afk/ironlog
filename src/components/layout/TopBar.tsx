@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase/client";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 import { friendlyName } from "@/lib/utils";
+import { Confirm } from "@/components/ui/Confirm";
 
 const iconBtn =
   "flex h-10 w-10 shrink-0 items-center justify-center border border-line text-ink-2 transition-colors hover:text-ink";
@@ -40,13 +41,22 @@ export function TopBar() {
         <Link href="/settings" aria-label="Settings" className={iconBtn}>
           <SettingsIcon className="h-4 w-4" />
         </Link>
-        <button
-          onClick={() => signOut(auth)}
-          aria-label="Sign out"
-          className="flex h-10 shrink-0 items-center gap-1.5 border border-line px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2 transition-colors hover:text-ink"
-        >
-          <LogOut className="h-4 w-4" /> <span className="hidden min-[400px]:inline">Log out</span>
-        </button>
+        {/* Asks first: on a phone it sits right beside Settings, one slip from losing your session. */}
+        <Confirm
+          title="Log out?"
+          message="Any workout in progress stays saved on this device for when you log back in."
+          confirmLabel="Log out"
+          onConfirm={() => signOut(auth)}
+          trigger={(open) => (
+            <button
+              onClick={open}
+              aria-label="Sign out"
+              className="flex h-10 shrink-0 items-center gap-1.5 border border-line px-2.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-2 transition-colors hover:text-ink"
+            >
+              <LogOut className="h-4 w-4" /> <span className="hidden min-[400px]:inline">Log out</span>
+            </button>
+          )}
+        />
       </div>
     </header>
   );

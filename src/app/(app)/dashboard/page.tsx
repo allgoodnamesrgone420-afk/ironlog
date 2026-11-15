@@ -16,6 +16,10 @@ import { StatStrip } from "@/components/dashboard/StatStrip";
 import { TemplatesFromHistory } from "@/components/dashboard/TemplatesFromHistory";
 import { TodayProgram } from "@/components/dashboard/TodayProgram";
 import { CoachInsight } from "@/components/dashboard/CoachInsight";
+import { NextMilestoneCard } from "@/components/milestones/MilestoneBadge";
+import { useMilestones } from "@/hooks/useMilestones";
+import { nextMilestones } from "@/lib/analytics/milestones";
+import { useUnits } from "@/providers/UnitsProvider";
 import { DashboardSkeleton } from "@/components/ui/PageSkeletons";
 
 function greeting() {
@@ -32,6 +36,9 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { workouts, loading } = useWorkouts();
   const [goal] = useSetting(WEEKLY_GOAL_SETTING);
+  const { units } = useUnits();
+  const { milestones, bodyweightKg } = useMilestones(workouts);
+  const nextUp = useMemo(() => nextMilestones(milestones, 1)[0], [milestones]);
 
   const streak = useMemo(() => goalStreak(workouts, goal), [workouts, goal]);
   const week = useMemo(() => trainingWeek(workouts), [workouts]);
@@ -82,6 +89,15 @@ export default function DashboardPage() {
         <div className="space-y-5">
           <Hero week={week} goal={goal} last={last} />
           <StatStrip workouts={workouts} />
+          {nextUp && (
+            <NextMilestoneCard
+              m={nextUp}
+              units={units}
+              bodyweightKg={bodyweightKg}
+              earned={milestones.filter((m) => m.earned).length}
+              total={milestones.length}
+            />
+          )}
         </div>
         <div className="space-y-5">
           <TodayProgram />

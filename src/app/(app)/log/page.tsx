@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpDown, Link as LinkIcon, Plus, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpDown, Link as LinkIcon, Maximize2, Plus, Repeat, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { useWorkouts } from "@/hooks/useWorkouts";
 import { useDraft } from "@/hooks/useDraft";
@@ -21,6 +22,7 @@ import {
   addToSuperset, appendSet, blankExercise, findPastNote, groupBySupersets, patchExercise, patchSet, removeExercise, removeSet,
 } from "@/lib/workout/editing";
 import { takeStashedWorkout } from "@/lib/workout/handoff";
+import { topRoutines } from "@/lib/workout/routines";
 import { uid } from "@/lib/utils";
 import type { Exercise, MuscleGroup, WorkoutSet } from "@/types/workout";
 import type { ProgramRef } from "@/types/program";
@@ -35,6 +37,7 @@ import { useRestTimerEnabled } from "@/hooks/useRestTimerEnabled";
 import { useBarbellKg } from "@/hooks/useBarbellKg";
 import { RestTimer } from "@/components/workout/RestTimer";
 import { AIGenerateModal } from "@/components/workout/AIGenerateModal";
+import { FocusMode } from "@/components/workout/FocusMode";
 
 interface Draft {
   name: string;
@@ -50,6 +53,15 @@ interface Draft {
 const STALE_DRAFT_MS = 3 * 60 * 60 * 1000;
 
 const hasCompletedSet = (exercises: Exercise[]) => exercises.some((e) => e.sets.some((s) => s.completed));
+
+/** A fresh session's name, from the time of day: "Morning Lift" at 9am, not "Evening Lift". */
+function defaultSessionName(d = new Date()) {
+  const h = d.getHours();
+  if (h >= 5 && h < 12) return "Morning Lift";
+  if (h >= 12 && h < 17) return "Afternoon Lift";
+  if (h >= 17 && h < 22) return "Evening Lift";
+  return "Late Night Lift";
+}
 
 // useSearchParams() must sit under a Suspense boundary for the static export
 // (and for streaming SSR on web). Keep the page logic in an inner component.
@@ -74,13 +86,14 @@ function LogPageInner() {
   const bodyweightKg = useLatestBodyweight();
 
   const [draft, setDraft, clearDraft, hydrated] = useDraft<Draft>(user?.uid, "draft", {
-    name: "Evening Lift",
+    name: defaultSessionName(),
     exercises: [blankExercise("Barbell Bench Press")],
     startedAt: Date.now(),
   });
 
   const [aiOpen, setAiOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   /** A new session waiting for the go-ahead to replace one that has sets done. */
   const [pending, setPending] = useState<Draft | null>(null);
@@ -150,6 +163,11 @@ function LogPageInner() {
   }, [params, hydrated]);
 
   const groups = useMemo(() => groupBySupersets(draft.exercises), [draft.exercises]);
+  // Before the first set: one tap loads a usual session (not the one already open).
+  const routines = useMemo(
+    () => topRoutines(workouts).filter((r) => r.latest.name.trim().toLowerCase() !== draft.name.trim().toLowerCase()),
+    [workouts, draft.name],
+  );
 
   // A draft opened long ago and never started (no set done) gets a fresh clock,
   // so the header doesn't count the hours it sat unused.
@@ -251,14 +269,14 @@ function LogPageInner() {
   const resetDraft = () => {
     clearDraft();
     timer.cancel();
-    setDraft({ name: "Evening Lift", exercises: [blankExercise()], startedAt: Date.now() });
+    setDraft({ name: defaultSessionName(), exercises: [blankExercise()], startedAt: Date.now() });
   };
 
   return (
     <div className="mx-auto max-w-[640px] space-y-5 pb-28">
       <header className="flex items-end gap-3">
         <label className="min-w-0 flex-1">
-          <span className="label block">
+          <span className="label block truncate">
             Session · {new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
           </span>
           <input
@@ -273,6 +291,15 @@ function LogPageInner() {
             placeholder="e.g. Leg Day"
           />
         </label>
+        <button
+          onClick={() => setFocusOpen(true)}
+          aria-label="Focus mode: one set at a time, full screen"
+          className="pop-btn ghost mb-1 h-11 min-h-0 w-11 shrink-0 gap-1.5 px-0 text-xs min-[370px]:w-auto min-[370px]:px-3"
+          style={{ ["--d" as string]: "3px" }}
+        >
+          <Maximize2 className="h-4 w-4" />
+          <span className="hidden min-[370px]:inline">Focus</span>
+        </button>
         <button
           onClick={() => setAiOpen(true)}
           aria-label="Generate workout with AI"
@@ -292,6 +319,17 @@ function LogPageInner() {
             </span>
           ))}
         </p>
+      )}
+
+      {!started && routines.length > 0 && (
+        <nav aria-label="Start from a routine" className="fade-in -mx-5 -mt-1 flex items-center gap-2 overflow-x-auto px-5 pb-1 no-scrollbar">
+          <span className="label shrink-0">Start from</span>
+          {routines.map((r) => (
+            <Link key={r.latest.id} href={`/log?repeat=${r.latest.id}`} className="chip shrink-0">
+              <Repeat className="h-3.5 w-3.5" /> {r.latest.name}
+            </Link>
+          ))}
+        </nav>
       )}
 
       <SessionBar
@@ -441,6 +479,24 @@ function LogPageInner() {
           </div>
         </div>
       </Modal>
+
+      <FocusMode
+        open={focusOpen}
+        onClose={() => setFocusOpen(false)}
+        exercises={draft.exercises}
+        workouts={workouts}
+        units={units}
+        startedAt={draft.startedAt}
+        volumeKg={volumeDone}
+        timerEnabled={timerEnabled}
+        saving={saving}
+        onUpdateSet={updateSet}
+        onAddSet={(exId) => editExercises((list) => appendSet(list, exId))}
+        onSetComplete={(ex) => {
+          if (timerEnabled) timer.start(ex.restSec ?? 90);
+        }}
+        onFinish={finish}
+      />
 
       {/* Timer UI is page-scoped (only visible here). State lives globally in
           TimerProvider so it keeps ticking when you navigate away. */}

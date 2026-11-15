@@ -1,6 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
-import { UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
+import { AdminConfigError, UNVERIFIED_MESSAGE, mayUseAI, verifyBearerToken } from "@/lib/firebase/admin";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { GeminiRequestSchema } from "@/lib/validation/schemas";
 import { checkOrigin, withCors } from "@/lib/server/cors";
@@ -40,7 +40,12 @@ async function handlePost(req: Request): Promise<NextResponse> {
     const who = await verifyBearerToken(req.headers.get("authorization"));
     if (!mayUseAI(who)) return NextResponse.json({ error: UNVERIFIED_MESSAGE, code: "unverified" }, { status: 403 });
     uid = who.uid;
-  } catch {
+  } catch (e) {
+    // A server that can't check tokens isn't a signed-out user (see /api/coach).
+    if (e instanceof AdminConfigError) {
+      console.error("[/api/gemini]", e.message);
+      return NextResponse.json({ error: "Server auth not configured" }, { status: 500 });
+    }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -26,7 +26,7 @@ import { StatsSkeleton } from "@/components/ui/PageSkeletons";
 import { MuscleBalance } from "@/components/dashboard/MuscleBalance";
 import { VolumeChart } from "@/components/dashboard/VolumeChart";
 import { PRCards } from "@/components/dashboard/PRCards";
-import { BarChart3, Calendar, CalendarCheck, Scale, Plus } from "lucide-react";
+import { BarChart3, Calendar, CalendarCheck, Medal, Scale, Plus } from "lucide-react";
 import { TrendChart } from "@/components/charts/TrendChart";
 
 /** Per-exercise 1RM progression over time. */
@@ -158,12 +158,15 @@ export default function StatsPage() {
           <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">How you&apos;re stacking up</h1>
         </div>
         {/* Phones reach these from here (desktop also has them in the sidebar). */}
-        <nav className="flex gap-2" aria-label="More stats">
+        <nav className="flex flex-wrap gap-2" aria-label="More stats">
           <Link href="/week" className="flex h-9 items-center gap-1.5 border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated">
             <CalendarCheck className="h-4 w-4" /> Weekly report
           </Link>
           <Link href="/body" className="flex h-9 items-center gap-1.5 border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated">
             <Scale className="h-4 w-4" /> Body
+          </Link>
+          <Link href="/milestones" className="flex h-9 items-center gap-1.5 border border-line px-3 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors hover:bg-elevated">
+            <Medal className="h-4 w-4" /> Milestones
           </Link>
         </nav>
       </header>

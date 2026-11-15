@@ -2,6 +2,7 @@
 
 import type { FirebaseApp } from "firebase/app";
 import {
+  connectFirestoreEmulator,
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
@@ -31,3 +32,12 @@ function resolveDb(a: FirebaseApp): Firestore {
 }
 
 export const db: Firestore = resolveDb(app);
+
+// Local development: the Firestore emulator (see the note in ./client).
+if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "1") {
+  const w = window as Window & { __ironlogFirestoreEmulator?: boolean };
+  if (!w.__ironlogFirestoreEmulator) {
+    w.__ironlogFirestoreEmulator = true;
+    connectFirestoreEmulator(db, window.location.hostname, 8080);
+  }
+}

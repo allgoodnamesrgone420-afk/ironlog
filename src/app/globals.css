@@ -546,6 +546,11 @@ body {
   animation: rise 250ms ease-out both;
   animation-delay: calc(var(--i, 0) * 40ms);
 }
+/* History cards rise in one after another, after the page header. */
+.history-in {
+  animation: rise 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(120ms + var(--i, 0) * 45ms);
+}
 /* "backwards", not "both": a finished animation must not pin the transform, or sheets couldn't be dragged. */
 .sheet {
   animation: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
@@ -685,14 +690,224 @@ body {
   animation: tick-pulse 500ms cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 
-/* Page change: a quick fade. Opacity only, so fixed children (rest timer) stay put. */
+/*
+ * Page change: fade and settle up a few pixels. The transform is safe because
+ * every fixed overlay inside a page (rest timer, sheets, Focus) is portaled to
+ * <body>; "backwards" leaves no transform behind once it ends.
+ */
 @keyframes page-in {
   from {
     opacity: 0;
+    transform: translateY(10px);
   }
 }
 .page-enter {
-  animation: page-in 200ms ease-out;
+  animation: page-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Focus mode: the overlay rises in and drops away; each set slides in from the side it came from. */
+@keyframes focus-enter {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+  }
+}
+@keyframes focus-exit {
+  to {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+  }
+}
+.focus-enter {
+  animation: focus-enter 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.focus-exit {
+  animation: focus-exit 160ms ease-in forwards;
+}
+@keyframes focus-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(56px);
+  }
+}
+@keyframes focus-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(-56px);
+  }
+}
+.focus-in-next {
+  animation: focus-in-next 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.focus-in-prev {
+  animation: focus-in-prev 300ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Focus mode's NEW PR: the badge punches in, holds, then lifts away. */
+@keyframes pr-pop {
+  0% {
+    transform: scale(0.3) rotate(-12deg);
+    opacity: 0;
+  }
+  22% {
+    transform: scale(1.15) rotate(-4deg);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-40px) scale(0.95) rotate(-4deg);
+    opacity: 0;
+  }
+}
+.pr-pop {
+  animation: pr-pop 1400ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* A field that needs a value: a short no-no wobble. */
+@keyframes shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+.shake {
+  animation: shake 360ms ease-in-out;
+}
+
+/* Dock tab becoming active: the icon hops once. */
+@keyframes tab-hop {
+  0% {
+    transform: none;
+  }
+  40% {
+    transform: translateY(-4px) scale(1.12);
+  }
+  100% {
+    transform: none;
+  }
+}
+.tab-hop {
+  animation: tab-hop 360ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+/* Milestones: badges pop into the grid one after another. */
+@keyframes badge-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+}
+.badge-in {
+  animation: badge-in 380ms cubic-bezier(0.3, 1.3, 0.5, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+/* A light band sweeps once across an earned badge. */
+@keyframes shine {
+  from {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  to {
+    transform: translateX(350%) skewX(-20deg);
+  }
+}
+.shine {
+  left: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
+  animation: shine 900ms ease-in-out both;
+  animation-delay: var(--shine-delay, 450ms);
+}
+/* Unlocked on the workout summary: the badge drops in and overshoots, sparks fly, the text follows. */
+@keyframes unlock-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.6) rotate(-14deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.08) rotate(3deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+.unlock-drop {
+  animation: unlock-drop 620ms cubic-bezier(0.3, 1.3, 0.5, 1) backwards;
+  animation-delay: calc(200ms + var(--i, 0) * 240ms);
+}
+@keyframes unlock-spark {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), var(--sy)) scale(0.2);
+  }
+}
+/* Hidden until its turn (no backwards fill), so the sparks don't sit on the badge while they wait. */
+.unlock-spark {
+  opacity: 0;
+  animation: unlock-spark 720ms cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+  animation-delay: calc(560ms + var(--i, 0) * 240ms);
+}
+.unlock-text {
+  animation: rise 360ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(420ms + var(--i, 0) * 240ms);
+}
+
+/* Toasts drop in from the top edge and settle. */
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.96);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1);
+  }
+  100% {
+    transform: none;
+  }
+}
+.toast-in {
+  animation: toast-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* Tappable cards answer a press: phones have no hover, so this is the only feedback a tap gets. */
+:is(a, button).card {
+  transition:
+    transform 120ms ease-out,
+    background-color 150ms;
+}
+:is(a, button).card:active {
+  transform: scale(0.985);
+}
+
+/* Skeleton blocks: a light band sweeps across instead of a flat blink. */
+@keyframes shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+.shimmer {
+  background-image: linear-gradient(90deg, transparent 0%, rgb(var(--ink) / 0.06) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
 /**
- * Re-mounts on every navigation, so each page fades in. Opacity only: a
- * transform here would become the containing block for fixed children like
- * the rest timer and pin them to the page instead of the screen.
+ * Re-mounts on every navigation, so each page fades and settles in. The
+ * animation moves the page with a transform, which would trap fixed children,
+ * so anything fixed inside a page (rest timer, sheets, Focus) portals to <body>.
  */
 export default function AppTemplate({ children }: { children: ReactNode }) {
   return <div className="page-enter">{children}</div>;

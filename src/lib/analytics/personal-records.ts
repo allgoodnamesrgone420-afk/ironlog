@@ -19,6 +19,25 @@ export function beats(a: { kg: number; reps: number }, b: { kg: number; reps: nu
   return !b || a.kg > b.kg || (a.kg === b.kg && a.reps > b.reps);
 }
 
+/**
+ * Would set `i` of this exercise, with these numbers, be a new record? It has
+ * to beat the best from earlier sessions and any heavier set already done
+ * today. A first attempt (no earlier best) isn't a record; warm-ups never are.
+ */
+export function isSessionPR(
+  sets: WorkoutSet[],
+  i: number,
+  values: { kg: number; reps: number },
+  prevBest: { kg: number; reps: number } | null,
+): boolean {
+  if (!prevBest || sets[i]?.warmup || values.kg <= 0 || values.reps <= 0) return false;
+  const sessionBest = sets.reduce<{ kg: number; reps: number } | null>(
+    (best, s, j) => (j !== i && s.completed && !s.warmup && s.kg > 0 && beats(s, best) ? s : best),
+    null,
+  );
+  return beats(values, sessionBest && beats(sessionBest, prevBest) ? sessionBest : prevBest);
+}
+
 /** Best completed, loaded set of one exercise in one workout. */
 function bestSet(sets: WorkoutSet[] | undefined, date: Date): Entry | null {
   let best: Entry | null = null;
